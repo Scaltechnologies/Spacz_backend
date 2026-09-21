@@ -535,54 +535,9 @@ These aren't necessarily "bugs" to panic about (this looks like an early-stage/d
 
 ## 9. How to Run This Locally
 
-### Prerequisites
+See **[`SETUP.md`](./SETUP.md)** for the full step-by-step developer setup guide (prerequisites, Docker-based MySQL setup, credential overrides, manual fallback without Docker, and troubleshooting).
 
-- **Java 17** (check with `java -version`).
-- **Docker Desktop** (recommended — gives every developer the exact same MySQL setup with one command). If you can't use Docker, see the [manual MySQL fallback](#manual-mysql-fallback-no-docker) below.
-- You do **not** need Maven installed — this repo includes the `mvnw`/`mvnw.cmd` wrapper.
-
-### Standard setup (Docker, recommended for the whole team)
-
-1. Clone the repo and `cd` into the `spacz/` folder (the one with `pom.xml` and `docker-compose.yml`).
-2. Start MySQL:
-   ```bash
-   docker compose up -d
-   ```
-   This starts a MySQL 8.4 container with database `spacz` and user `root`/password `root` — the same defaults `application.properties` already expects, so **no config changes are needed**. Data persists in a Docker volume (`spacz-mysql-data`) across restarts, so you won't lose data between `docker compose down`/`up` cycles (only `docker compose down -v` wipes it).
-3. Run the app:
-   ```bash
-   ./mvnw spring-boot:run        # macOS/Linux
-   mvnw.cmd spring-boot:run      # Windows
-   ```
-4. The API will be available at `http://localhost:8080`, and Swagger UI at `http://localhost:8080/swagger-ui/index.html`. Hibernate will auto-create all the tables listed in [Section 5](#5-database-design-entities--relationships) the first time it starts.
-
-Useful commands:
-- `docker compose logs -f mysql` — tail the MySQL container's logs.
-- `docker compose exec mysql mysql -uroot -proot spacz` — open a MySQL shell inside the container.
-- `docker compose down` — stop MySQL (data is kept).
-- `docker compose down -v` — stop MySQL **and delete all data** (fresh start).
-
-### Manual MySQL fallback (no Docker)
-
-If Docker isn't available, install MySQL 8.x yourself, then either create a database named `spacz` with a `root`/`root` login to match the defaults, or point the app at your own instance without editing any tracked file:
-
-```bash
-# macOS/Linux
-export DB_URL="jdbc:mysql://localhost:3306/spacz?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
-export DB_USERNAME=myuser
-export DB_PASSWORD=mypassword
-./mvnw spring-boot:run
-```
-
-```powershell
-# Windows PowerShell
-$env:DB_USERNAME = "myuser"
-$env:DB_PASSWORD = "mypassword"
-mvnw.cmd spring-boot:run
-```
-
-See [7.4](#74-configuration-applicationproperties) for how the `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` overrides work.
-6. Explore the API interactively at `http://localhost:8080/swagger-ui.html`.
+Short version: `docker compose up -d` to start MySQL, then `./mvnw spring-boot:run` (or `mvnw.cmd spring-boot:run` on Windows). The API is then available at `http://localhost:8080`, with Swagger UI at `http://localhost:8080/swagger-ui/index.html`. Hibernate auto-creates all the tables listed in [Section 5](#5-database-design-entities--relationships) the first time it starts.
 
 ---
 
