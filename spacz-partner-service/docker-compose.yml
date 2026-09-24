@@ -1,0 +1,25 @@
+# Runs ONLY the Partner Service in a container.
+#
+# It does not start its own MySQL: it connects to the MySQL already published on
+# the host's port 3306, i.e. either `docker compose up -d` from ../spacz (the
+# team's standard spacz-mysql container) or a locally installed MySQL. This keeps
+# a single `spacz` database and never touches its data volume.
+#
+#   docker compose up -d --build     # build + start on http://localhost:8080
+#   docker compose logs -f partner-service
+#   docker compose down
+services:
+  partner-service:
+    build: .
+    image: spacz-partner-service:latest
+    container_name: spacz-partner-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: ${DB_URL:-jdbc:mysql://host.docker.internal:3306/spacz?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux too (built in on Docker Desktop).
+      - "host.docker.internal:host-gateway"
