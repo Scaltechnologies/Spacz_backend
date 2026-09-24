@@ -1,0 +1,20 @@
+-- Initial exam/course catalog. Admins manage it afterwards through /api/admin/programs.
+INSERT INTO preparation_programs (code, name, description, category) VALUES
+    ('UPSC_CSE',   'UPSC Civil Services',          'IAS / IPS / IFS preliminary and main examinations', 'Civil Services'),
+    ('STATE_PSC',  'State PSC',                    'State public service commission examinations',      'Civil Services'),
+    ('SSC_CGL',    'SSC CGL',                      'Staff Selection Commission combined graduate level', 'Government Jobs'),
+    ('SSC_CHSL',   'SSC CHSL',                     'Staff Selection Commission higher secondary level',  'Government Jobs'),
+    ('RRB_NTPC',   'RRB NTPC',                     'Railway recruitment non-technical popular categories','Government Jobs'),
+    ('IBPS_PO',    'IBPS PO',                      'Probationary officer examination for public sector banks', 'Banking'),
+    ('SBI_PO',     'SBI PO',                       'State Bank of India probationary officer examination', 'Banking'),
+    ('IBPS_CLERK', 'IBPS Clerk',                   'Clerical cadre examination for public sector banks', 'Banking'),
+    ('GATE',       'GATE',                         'Graduate Aptitude Test in Engineering',             'Engineering'),
+    ('JEE_MAIN',   'JEE Main',                     'Joint Entrance Examination (Main)',                 'Engineering'),
+    ('JEE_ADV',    'JEE Advanced',                 'Joint Entrance Examination (Advanced)',             'Engineering'),
+    ('NEET_UG',    'NEET UG',                      'National Eligibility cum Entrance Test (UG)',       'Medical'),
+    ('NEET_PG',    'NEET PG',                      'National Eligibility cum Entrance Test (PG)',       'Medical'),
+    ('CAT',        'CAT',                          'Common Admission Test for management programmes',   'Management'),
+    ('CA',         'Chartered Accountancy',        'ICAI foundation, intermediate and final',           'Professional'),
+    ('CLAT',       'CLAT',                         'Common Law Admission Test',                         'Law'),
+    ('GRE_GMAT',   'GRE / GMAT',                   'Graduate admission tests for study abroad',         'Study Abroad'),
+    ('OTHER',      'Other / Self Study',           'Any other competitive or professional exam',        'Other');

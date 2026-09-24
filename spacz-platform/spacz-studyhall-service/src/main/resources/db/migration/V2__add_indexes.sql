@@ -1,0 +1,12 @@
+CREATE INDEX idx_vendor_profiles_status ON vendor_profiles (status);
+CREATE INDEX idx_study_halls_vendor ON study_halls (vendor_profile_id);
+CREATE INDEX idx_study_halls_status_city ON study_halls (status, lower(city));
+CREATE INDEX idx_study_halls_price ON study_halls (price_per_day);
+CREATE INDEX idx_study_halls_geo ON study_halls (latitude, longitude);
+CREATE INDEX idx_study_hall_programs_program ON study_hall_programs (program_id);
+CREATE INDEX idx_study_hall_amenities_amenity ON study_hall_amenities (amenity_id);
+CREATE INDEX idx_seats_hall_status ON seats (study_hall_id, status);
+CREATE INDEX idx_bookings_user_created ON bookings (user_id, created_at DESC);
+CREATE INDEX idx_bookings_hall_dates ON bookings (study_hall_id, start_date, end_date);
+CREATE INDEX idx_bookings_pending_hold ON bookings (hold_expires_at) WHERE status = 'PENDING';
+CREATE INDEX idx_bookings_confirmed_end ON bookings (end_date) WHERE status = 'CONFIRMED';

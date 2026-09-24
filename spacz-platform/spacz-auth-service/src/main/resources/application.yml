@@ -1,0 +1,86 @@
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: spacz-auth-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/spacz_auth}
+    username: ${DB_USERNAME:spacz_auth}
+    password: ${DB_PASSWORD:spacz_auth_dev}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+spacz:
+  security:
+    jwt:
+      # Dev-only default. docker-compose and production always provide JWT_SECRET.
+      secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-0123456789}
+      issuer: ${JWT_ISSUER:spacz-auth}
+    internal:
+      api-key: ${INTERNAL_API_KEY:dev-only-internal-api-key-change-me}
+  auth:
+    access-token-ttl: ${ACCESS_TOKEN_TTL:15m}
+    refresh-token-ttl: ${REFRESH_TOKEN_TTL:7d}
+    max-failed-logins: 5
+    lock-duration: 15m
+    bootstrap-admin:
+      email: ${BOOTSTRAP_ADMIN_EMAIL:}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+  otp:
+    length: 6
+    ttl: ${OTP_TTL:5m}
+    max-attempts: 5
+    resend-cooldown: ${OTP_RESEND_COOLDOWN:30s}
+    max-per-hour: ${OTP_MAX_PER_HOUR:5}
+    default-country-code: ${OTP_DEFAULT_COUNTRY_CODE:+91}
+    # "log" writes codes to the service log (development). Implement SmsSender for a real gateway.
+    sms-provider: ${OTP_SMS_PROVIDER:log}
+    # DEVELOPMENT ONLY: returns the code in the /otp/request response. Never enable in production.
+    expose-code-in-response: ${OTP_EXPOSE_CODE:false}
+  clients:
+    user-service-url: ${USER_SERVICE_URL:http://localhost:8082}
+    studyhall-service-url: ${STUDYHALL_SERVICE_URL:http://localhost:8083}
+    admin-service-url: ${ADMIN_SERVICE_URL:http://localhost:8084}
+    connect-timeout: 2s
+    read-timeout: 5s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  default-produces-media-type: application/json
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{correlationId:-}]"

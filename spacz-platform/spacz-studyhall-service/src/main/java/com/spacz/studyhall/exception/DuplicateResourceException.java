@@ -1,0 +1,10 @@
+package com.spacz.studyhall.exception;
+
+import org.springframework.http.HttpStatus;
+
+public class DuplicateResourceException extends SpaczException {
+
+    public DuplicateResourceException(String message) {
+        super(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", message);
+    }
+}
