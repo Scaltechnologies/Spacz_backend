@@ -1,0 +1,16 @@
+INSERT INTO amenities (code, name, icon, description) VALUES
+    ('WIFI',          'Wi-Fi',              'wifi',          'High-speed internet'),
+    ('AC',            'Air Conditioning',   'snowflake',     'Fully air-conditioned hall'),
+    ('POWER_BACKUP',  'Power Backup',       'battery',       'Generator / inverter backup'),
+    ('CHARGING',      'Charging Points',    'plug',          'Power socket at every seat'),
+    ('LOCKER',        'Personal Locker',    'lock',          'Lockable storage'),
+    ('WATER',         'Drinking Water',     'droplet',       'RO drinking water'),
+    ('WASHROOM',      'Clean Washrooms',    'restroom',      'Separate, cleaned daily'),
+    ('CCTV',          'CCTV Security',      'camera',        '24x7 CCTV surveillance'),
+    ('PARKING',       'Parking',            'car',           'Two-wheeler / car parking'),
+    ('LIBRARY',       'Reference Library',  'book',          'Books and magazines for competitive exams'),
+    ('DISCUSSION',    'Discussion Room',    'users',         'Separate room for group study'),
+    ('CAFETERIA',     'Cafeteria',          'coffee',        'Tea, coffee and snacks'),
+    ('PRINTER',       'Printing',           'printer',       'Print and photocopy'),
+    ('READING_LAMP',  'Reading Lamp',       'lamp',          'Individual desk lamp'),
+    ('NEWSPAPER',     'Daily Newspapers',   'newspaper',     'Daily newspapers for current affairs');

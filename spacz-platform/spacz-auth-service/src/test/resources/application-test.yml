@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:spacz;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+spacz:
+  security:
+    jwt:
+      secret: test-only-jwt-secret-for-automated-tests-0123456789
+      issuer: spacz-auth
+    internal:
+      api-key: test-internal-api-key-0123456789

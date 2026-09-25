@@ -1,0 +1,101 @@
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+spring:
+  application:
+    name: spacz-gateway-service
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 3000
+        response-timeout: 20s
+      default-filters:
+        # Clients must never be able to impersonate a service.
+        - RemoveRequestHeader=X-Internal-Api-Key
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+        - name: RequestSize
+          args:
+            maxSize: 2MB
+      routes:
+        - id: auth-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/auth/**
+        - id: user-service
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/users/**
+        - id: studyhall-service
+          uri: ${STUDYHALL_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/vendors/**,/api/studyhalls/**,/api/programs/**,/api/amenities/**,/api/bookings/**
+        # Legacy Partner-app contract (formerly spacz-partner-service), served by studyhall-service.
+        - id: studyhall-legacy-partner-api
+          uri: ${STUDYHALL_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/owners/**,/api/properties/**,/api/blocks/**,/api/seats/**,/amenities/**,/images/**
+        - id: admin-service
+          uri: ${ADMIN_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/admin/**
+        # OpenAPI documents of each service, aggregated in the gateway's Swagger UI.
+        - id: auth-docs
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/docs/auth/v3/api-docs
+          filters:
+            - SetPath=/v3/api-docs
+        - id: user-docs
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/docs/user/v3/api-docs
+          filters:
+            - SetPath=/v3/api-docs
+        - id: studyhall-docs
+          uri: ${STUDYHALL_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/docs/studyhall/v3/api-docs
+          filters:
+            - SetPath=/v3/api-docs
+        - id: admin-docs
+          uri: ${ADMIN_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/docs/admin/v3/api-docs
+          filters:
+            - SetPath=/v3/api-docs
+
+spacz:
+  gateway:
+    jwt-secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-0123456789}
+    jwt-issuer: ${JWT_ISSUER:spacz-auth}
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: auth-service
+        url: /docs/auth/v3/api-docs
+      - name: user-service
+        url: /docs/user/v3/api-docs
+      - name: studyhall-service
+        url: /docs/studyhall/v3/api-docs
+      - name: admin-service
+        url: /docs/admin/v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO

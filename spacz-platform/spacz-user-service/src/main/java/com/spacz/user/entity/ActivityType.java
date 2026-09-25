@@ -1,0 +1,14 @@
+package com.spacz.user.entity;
+
+public enum ActivityType {
+    PROFILE_CREATED,
+    PROFILE_UPDATED,
+    PROGRAM_ADDED,
+    PROGRAM_UPDATED,
+    PROGRAM_REMOVED,
+    BOOKING_CREATED,
+    BOOKING_CONFIRMED,
+    BOOKING_CANCELLED,
+    BOOKING_COMPLETED,
+    BOOKING_EXPIRED
+}

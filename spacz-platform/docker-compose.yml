@@ -1,0 +1,159 @@
+# SPACZ platform: PostgreSQL + 5 microservices.
+#   cp .env.example .env   # then set real secrets
+#   docker compose up -d --build
+# Only the gateway (8080) needs to be reachable by the frontend. The service ports are published
+# for local debugging / Swagger and can be removed in production.
+
+name: spacz
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks: [spacz]
+
+x-common-env: &common-env
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+  JWT_ISSUER: ${JWT_ISSUER:-spacz-auth}
+  INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY must be set in .env}
+  JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [spacz]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: postgres
+      # One database + one login role per service (see docker/postgres/init-databases.sh).
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD must be set in .env}
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD must be set in .env}
+      STUDYHALL_DB_PASSWORD: ${STUDYHALL_DB_PASSWORD:?STUDYHALL_DB_PASSWORD must be set in .env}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD:?ADMIN_DB_PASSWORD must be set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/01-init-databases.sh:ro
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  user-service:
+    <<: *service-defaults
+    build: ./spacz-user-service
+    image: spacz/user-service:latest
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/spacz_user
+      DB_USERNAME: spacz_user
+      DB_PASSWORD: ${USER_DB_PASSWORD}
+      STUDYHALL_SERVICE_URL: http://studyhall-service:8083
+    ports:
+      - "${USER_HOST_PORT:-8082}:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  studyhall-service:
+    <<: *service-defaults
+    build: ./spacz-studyhall-service
+    image: spacz/studyhall-service:latest
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/spacz_studyhall
+      DB_USERNAME: spacz_studyhall
+      DB_PASSWORD: ${STUDYHALL_DB_PASSWORD}
+      USER_SERVICE_URL: http://user-service:8082
+      ADMIN_SERVICE_URL: http://admin-service:8084
+      STUDYHALL_APPROVAL_REQUIRED: ${STUDYHALL_APPROVAL_REQUIRED:-true}
+      BOOKING_AUTO_CONFIRM: ${BOOKING_AUTO_CONFIRM:-false}
+      BOOKING_HOLD_DURATION: ${BOOKING_HOLD_DURATION:-15m}
+      BUSINESS_TIME_ZONE: ${BUSINESS_TIME_ZONE:-Asia/Kolkata}
+    ports:
+      - "${STUDYHALL_HOST_PORT:-8083}:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+
+  auth-service:
+    <<: *service-defaults
+    build: ./spacz-auth-service
+    image: spacz/auth-service:latest
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/spacz_auth
+      DB_USERNAME: spacz_auth
+      DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      USER_SERVICE_URL: http://user-service:8082
+      STUDYHALL_SERVICE_URL: http://studyhall-service:8083
+      ADMIN_SERVICE_URL: http://admin-service:8084
+      OTP_SMS_PROVIDER: ${OTP_SMS_PROVIDER:-log}
+      OTP_EXPOSE_CODE: ${OTP_EXPOSE_CODE:-false}
+      OTP_DEFAULT_COUNTRY_CODE: ${OTP_DEFAULT_COUNTRY_CODE:-+91}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    ports:
+      - "${AUTH_HOST_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      studyhall-service:
+        condition: service_healthy
+
+  admin-service:
+    <<: *service-defaults
+    build: ./spacz-admin-service
+    image: spacz/admin-service:latest
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/spacz_admin
+      DB_USERNAME: spacz_admin
+      DB_PASSWORD: ${ADMIN_DB_PASSWORD}
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+      STUDYHALL_SERVICE_URL: http://studyhall-service:8083
+    ports:
+      - "${ADMIN_HOST_PORT:-8084}:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+
+  gateway-service:
+    <<: *service-defaults
+    build: ./spacz-gateway-service
+    image: spacz/gateway-service:latest
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-spacz-auth}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError}
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+      STUDYHALL_SERVICE_URL: http://studyhall-service:8083
+      ADMIN_SERVICE_URL: http://admin-service:8084
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    ports:
+      - "${GATEWAY_HOST_PORT:-8080}:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      studyhall-service:
+        condition: service_healthy
+      admin-service:
+        condition: service_healthy
+
+networks:
+  spacz:
+
+volumes:
+  pgdata:
