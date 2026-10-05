@@ -24,7 +24,10 @@ amenity flags → amenities, image → image).
 | `client` | `UserServiceClient`, `AdminServiceClient` (audit events) |
 | migrations | `V1` schema, `V2` indexes, `V3` exclusion constraint, `V4` amenities seed, `V5` blocks/programs/enrollments/legacy IDs |
 
-**Run alone:** Postgres from compose, then `../mvnw spring-boot:run`. Env: DB vars, `JWT_SECRET`,
+**Run alone:** Postgres from compose, then `../mvnw spring-boot:run` (working directory = this
+folder). The platform `../.env` is imported automatically, so `POSTGRES_HOST_PORT`,
+`STUDYHALL_DB_PASSWORD`, `JWT_SECRET` and `INTERNAL_API_KEY` match the containers. Stop the
+`studyhall-service` container first (or set `SERVER_PORT`) to free 8083. Env: DB vars, `JWT_SECRET`,
 `JWT_ISSUER`, `INTERNAL_API_KEY`, `USER_SERVICE_URL`, `ADMIN_SERVICE_URL`,
 `STUDYHALL_APPROVAL_REQUIRED` (true), `BOOKING_AUTO_CONFIRM` (false), `BOOKING_HOLD_DURATION` (15m),
 `BUSINESS_TIME_ZONE` (Asia/Kolkata).

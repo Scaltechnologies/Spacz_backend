@@ -3,6 +3,7 @@ package com.spacz.studyhall.mapper;
 import com.spacz.studyhall.dto.hall.AmenityResponse;
 import com.spacz.studyhall.dto.hall.BlockSummary;
 import com.spacz.studyhall.dto.hall.ImageResponse;
+import com.spacz.studyhall.storage.MediaUrls;
 import com.spacz.studyhall.dto.hall.OperatingHoursResponse;
 import com.spacz.studyhall.dto.hall.ProgramRef;
 import com.spacz.studyhall.dto.hall.StudyHallDetailResponse;
@@ -55,7 +56,7 @@ public class StudyHallMapper {
     }
 
     public ImageResponse toResponse(StudyHallImage i) {
-        return new ImageResponse(i.getId(), i.getUrl(), i.getCaption(), i.getDisplayOrder(), i.isCover());
+        return new ImageResponse(i.getId(), MediaUrls.resolve(i.getUrl()), i.getCaption(), i.getDisplayOrder(), i.isCover());
     }
 
     public OperatingHoursResponse toResponse(OperatingHours h) {
@@ -63,7 +64,7 @@ public class StudyHallMapper {
     }
 
     public BlockSummary toSummary(Block b) {
-        return new BlockSummary(b.getId(), b.getName(), b.getTotalRows(), b.getTotalColumns(), b.getSeats().size(),
+        return new BlockSummary(b.getId(), b.getFloor().getId(), b.getName(), b.getTotalRows(), b.getTotalColumns(), b.getSeats().size(),
                 b.effectiveDailyPrice(), b.effectiveMonthlyPrice(),
                 b.getAmenities().stream().map(Amenity::getName).sorted().toList());
     }
@@ -103,6 +104,7 @@ public class StudyHallMapper {
                 .findFirst()
                 .or(() -> h.getImages().stream().findFirst())
                 .map(StudyHallImage::getUrl)
+                .map(MediaUrls::resolve)
                 .orElse(null);
     }
 }

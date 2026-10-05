@@ -29,6 +29,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -140,6 +141,11 @@ public class StudyHall {
     @OneToMany(mappedBy = "studyHall", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Block> blocks = new ArrayList<>();
 
+    @BatchSize(size = 50)
+    @OrderBy("displayOrder ASC, floorNumber ASC")
+    @OneToMany(mappedBy = "studyHall", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Floor> floors = new ArrayList<>();
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -156,6 +162,17 @@ public class StudyHall {
         hall.vendor = vendor;
         hall.status = StudyHallStatus.DRAFT;
         return hall;
+    }
+
+    /** The first floor; a hall without floors gets a "Ground Floor" (persisted with its first block). */
+    public Floor defaultFloor() {
+        return floors.stream()
+                .min(Comparator.comparingInt(Floor::getDisplayOrder).thenComparingInt(Floor::getFloorNumber))
+                .orElseGet(() -> {
+                    Floor ground = Floor.of(this, Floor.GROUND, "Ground Floor", 0);
+                    floors.add(ground);
+                    return ground;
+                });
     }
 
     /** Listed in search and bookable. */

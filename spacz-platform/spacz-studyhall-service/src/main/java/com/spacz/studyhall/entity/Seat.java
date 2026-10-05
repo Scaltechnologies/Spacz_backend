@@ -20,8 +20,9 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 /**
- * One seat at a (row, column) cell of a block. The hall reference is denormalised for fast
- * availability queries. Price overrides are optional (seat → block → hall).
+ * A bookable seat of a block, shown by the SEAT {@link LayoutCell} at the same (row, column). Bookings
+ * reference seats, never cells. The hall reference is denormalised for fast availability queries.
+ * Price overrides are optional (seat → block → hall).
  */
 @Entity
 @Table(name = "seats")
@@ -83,7 +84,10 @@ public class Seat {
         return seat;
     }
 
-    /** Moves the seat to a cell of another block (same or other hall of the same vendor). */
+    /**
+     * Moves the seat to a position of another block (same or other hall of the same vendor). The caller
+     * moves its layout cell too ({@link BlockLayout#removeSeatCell} / {@link BlockLayout#addSeat}).
+     */
     public void moveTo(Block target, int row, int column) {
         this.block = target;
         this.studyHall = target.getStudyHall();

@@ -49,7 +49,7 @@ public final class Fixtures {
     }
 
     public static Block block(long id, StudyHall hall) {
-        Block block = Block.of(hall, "Ground", 5, 5, 1);
+        Block block = Block.of(hall.defaultFloor(), "Ground", 5, 5, 1);
         ReflectionTestUtils.setField(block, "id", id);
         hall.getBlocks().add(block);
         return block;

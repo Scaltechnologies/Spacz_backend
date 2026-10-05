@@ -1,7 +1,9 @@
 package com.spacz.studyhall.service.impl;
 
 import com.spacz.studyhall.client.UserServiceClient;
+import com.spacz.studyhall.client.AdminServiceClient;
 import com.spacz.studyhall.config.BookingProperties;
+import com.spacz.studyhall.config.PricingProperties;
 import com.spacz.studyhall.dto.booking.BookingResponse;
 import com.spacz.studyhall.dto.booking.CreateBookingRequest;
 import com.spacz.studyhall.entity.Block;
@@ -70,6 +72,8 @@ class BookingServiceImplTest {
     private UserServiceClient userServiceClient;
     @Mock
     private ApplicationEventPublisher events;
+    @Mock
+    private AdminServiceClient adminServiceClient;
 
     private StudyHall hall;
     private Block block;
@@ -87,7 +91,8 @@ class BookingServiceImplTest {
                 ZoneId.of("Asia/Kolkata"));
         return new BookingServiceImpl(bookingRepository, seatRepository, programRepository, vendorAccess,
                 enrollmentService, userServiceClient, new BookingMapper(), properties, events,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC), new BookingPricing(adminServiceClient, bookingRepository,
+                new PricingProperties(BigDecimal.ZERO, BigDecimal.ZERO)));
     }
 
     private void seatIsFree() {

@@ -44,7 +44,8 @@ public final class StudyHallSpecifications {
                 cb.like(cb.lower(root.get("name")), pattern),
                 cb.like(cb.lower(root.get("description")), pattern),
                 cb.like(cb.lower(root.get("addressLine")), pattern),
-                cb.like(cb.lower(root.get("city")), pattern));
+                cb.like(cb.lower(root.get("city")), pattern),
+                cb.like(cb.lower(root.get("pincode")), pattern));
     }
 
     public static Specification<StudyHall> inCity(String city) {

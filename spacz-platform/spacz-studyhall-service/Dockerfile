@@ -9,6 +9,8 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q package -DskipTests
 # ---- runtime ----
 FROM eclipse-temurin:17-jre
 RUN groupadd --system spacz && useradd --system --gid spacz --uid 1001 --no-create-home spacz
+# vendor-uploaded hall photos (named volume, see docker-compose.yml)
+RUN mkdir -p /data/hall-images && chown spacz:spacz /data/hall-images
 WORKDIR /app
 COPY --from=build /build/target/spacz-studyhall-service.jar app.jar
 USER spacz

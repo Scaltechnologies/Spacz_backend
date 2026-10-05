@@ -2,18 +2,28 @@ package com.spacz.studyhall.service.impl;
 
 import com.spacz.studyhall.config.BookingProperties;
 import com.spacz.studyhall.dto.PageResponse;
+import com.spacz.studyhall.dto.hall.LocationResponse;
 import com.spacz.studyhall.dto.hall.StudyHallDetailResponse;
 import com.spacz.studyhall.dto.hall.StudyHallSearchCriteria;
 import com.spacz.studyhall.dto.hall.StudyHallSummaryResponse;
 import com.spacz.studyhall.dto.seat.AvailabilityResponse;
 import com.spacz.studyhall.dto.seat.BlockResponse;
+import com.spacz.studyhall.dto.seat.FloorLayoutResponse;
+import com.spacz.studyhall.dto.seat.HallLayoutResponse;
 import com.spacz.studyhall.dto.seat.SeatMapResponse;
+import com.spacz.studyhall.entity.Block;
+import com.spacz.studyhall.entity.BlockLayout;
+import com.spacz.studyhall.entity.Floor;
+import com.spacz.studyhall.entity.LayoutType;
 import com.spacz.studyhall.entity.Seat;
 import com.spacz.studyhall.entity.SeatStatus;
 import com.spacz.studyhall.entity.StudyHall;
 import com.spacz.studyhall.exception.BusinessRuleException;
 import com.spacz.studyhall.mapper.SeatMapper;
+import com.spacz.studyhall.repository.BlockLayoutRepository;
+import com.spacz.studyhall.repository.BlockRepository;
 import com.spacz.studyhall.repository.BookingRepository;
+import com.spacz.studyhall.repository.FloorRepository;
 import com.spacz.studyhall.repository.SeatRepository;
 import com.spacz.studyhall.repository.StudyHallRepository;
 import com.spacz.studyhall.repository.StudyHallSpecifications;
@@ -22,6 +32,8 @@ import com.spacz.studyhall.service.StudyHallQueryService;
 import com.spacz.studyhall.service.support.PageableSupport;
 import com.spacz.studyhall.service.support.VendorAccess;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -30,11 +42,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class StudyHallQueryServiceImpl implements StudyHallQueryService {
 
     private static final Set<String> SORTABLE = Set.of("name", "city", "pricePerDay", "pricePerMonth", "createdAt");
@@ -43,12 +62,33 @@ public class StudyHallQueryServiceImpl implements StudyHallQueryService {
 
     private final StudyHallRepository studyHallRepository;
     private final SeatRepository seatRepository;
+    private final FloorRepository floorRepository;
+    private final BlockRepository blockRepository;
+    private final BlockLayoutRepository layoutRepository;
     private final BookingRepository bookingRepository;
     private final VendorAccess vendorAccess;
     private final HallViewAssembler assembler;
     private final SeatMapper seatMapper;
     private final BookingProperties bookingProperties;
     private final Clock clock;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LocationResponse> locations() {
+        Map<String, LocationResponse> byCity = new LinkedHashMap<>();
+        for (StudyHall hall : studyHallRepository.findAll(StudyHallSpecifications.publiclyVisible())) {
+            if (hall.getCity() == null || hall.getCity().isBlank()) {
+                continue;
+            }
+            String city = hall.getCity().trim();
+            byCity.merge(city.toLowerCase(Locale.ROOT), new LocationResponse(city, hall.getState(), 1),
+                    (current, added) -> new LocationResponse(current.city(), current.state(), current.hallCount() + 1));
+        }
+        return byCity.values().stream()
+                .sorted(Comparator.comparingLong(LocationResponse::hallCount).reversed()
+                        .thenComparing(LocationResponse::city))
+                .toList();
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -75,7 +115,10 @@ public class StudyHallQueryServiceImpl implements StudyHallQueryService {
                 .and(StudyHallSpecifications.hasFreeSeat(c.availableFrom(), c.availableTo(), clock.instant()));
 
         Pageable safe = PageableSupport.restrictSort(pageable, SORTABLE, Sort.by("name"));
-        return assembler.page(studyHallRepository.findAll(spec, safe), c.latitude(), c.longitude());
+        Page<StudyHall> page = studyHallRepository.findAll(spec, safe);
+        log.info("Study hall search (search={}, city={}, programId={}, nearMe={}) -> {} of {} live halls",
+                c.search() != null, c.city(), c.programId(), radius != null, page.getNumberOfElements(), page.getTotalElements());
+        return assembler.page(page, c.latitude(), c.longitude());
     }
 
     @Override
@@ -98,6 +141,34 @@ public class StudyHallQueryServiceImpl implements StudyHallQueryService {
         return new SeatMapResponse(studyHallId, start, end, blocks);
     }
 
+    /**
+     * Floors → blocks → layout cells with per-seat availability. A fixed number of queries whatever the
+     * hall size: floors, blocks, layouts with cells and seats (one fetch join), occupied seat IDs.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public HallLayoutResponse layout(Long studyHallId, AuthenticatedUser caller, LocalDate startDate, LocalDate endDate) {
+        vendorAccess.viewableHall(studyHallId, caller);
+        LocalDate start = startDate != null ? startDate : today();
+        LocalDate end = endDate != null ? endDate : start;
+        validateRange(start, end);
+        List<Floor> floors = floorRepository.findByStudyHallIdOrderByDisplayOrderAscFloorNumberAsc(studyHallId);
+        Map<Long, List<Block>> blocksByFloor = blockRepository.findByStudyHallIdOrderByDisplayOrderAscIdAsc(studyHallId)
+                .stream()
+                .collect(Collectors.groupingBy(b -> b.getFloor().getId(), LinkedHashMap::new, Collectors.toList()));
+        Map<Long, BlockLayout> layouts = layoutRepository.findByStudyHallIdWithCells(studyHallId).stream()
+                .collect(Collectors.toMap(BlockLayout::getId, Function.identity()));
+        Set<Long> occupied = bookingRepository.findOccupiedSeatIds(studyHallId, start, end, clock.instant());
+        List<FloorLayoutResponse> floorResponses = floors.stream()
+                .map(floor -> new FloorLayoutResponse(floor.getId(), floor.getFloorNumber(), floor.getName(),
+                        floor.getDescription(), floor.getDisplayOrder(),
+                        blocksByFloor.getOrDefault(floor.getId(), List.of()).stream()
+                                .map(block -> seatMapper.toLayoutResponse(block, layoutOf(block, layouts), occupied))
+                                .toList()))
+                .toList();
+        return new HallLayoutResponse(studyHallId, start, end, floorResponses);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public AvailabilityResponse availability(Long studyHallId, AuthenticatedUser caller, LocalDate startDate,
@@ -117,6 +188,12 @@ public class StudyHallQueryServiceImpl implements StudyHallQueryService {
         long occupiedInService = seats.size() - outOfService - available.size();
         return new AvailabilityResponse(studyHallId, start, end, seats.size(), available.size(), occupiedInService,
                 outOfService, available);
+    }
+
+    /** Every block has a layout (V6); a missing one is shown as a plain grid of the block's seats. */
+    private static BlockLayout layoutOf(Block block, Map<Long, BlockLayout> layouts) {
+        BlockLayout layout = layouts.get(block.getId());
+        return layout != null ? layout : BlockLayout.of(block, LayoutType.GRID);
     }
 
     private void validateRange(LocalDate start, LocalDate end) {

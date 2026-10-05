@@ -20,5 +20,7 @@ public record CreateSeatRequest(
         @Min(1) int column,
         @NotNull SeatType seatType,
         @DecimalMin(value = "0.0", inclusive = false) @Digits(integer = 8, fraction = 2) BigDecimal pricePerDay,
-        @DecimalMin(value = "0.0", inclusive = false) @Digits(integer = 8, fraction = 2) BigDecimal pricePerMonth) {
+        @DecimalMin(value = "0.0", inclusive = false) @Digits(integer = 8, fraction = 2) BigDecimal pricePerMonth,
+        @Schema(example = "NORTH", description = "Way the seat faces: NORTH (far side), SOUTH (entrance), EAST or WEST (optional)")
+        com.spacz.studyhall.entity.Direction direction) {
 }

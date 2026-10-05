@@ -4,12 +4,20 @@ server:
   forward-headers-strategy: framework
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
   application:
     name: spacz-studyhall-service
+  # Outside Docker (IDE / spring-boot:run from this directory), pick up the platform .env so the
+  # DB port/password and shared secrets match the compose containers. Absent in the image: no-op.
+  config:
+    import: optional:file:../.env[.properties]
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/spacz_studyhall}
+    url: ${DB_URL:jdbc:postgresql://localhost:${POSTGRES_HOST_PORT:5432}/spacz_studyhall}
     username: ${DB_USERNAME:spacz_studyhall}
-    password: ${DB_PASSWORD:spacz_studyhall_dev}
+    password: ${DB_PASSWORD:${STUDYHALL_DB_PASSWORD:spacz_studyhall_dev}}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:15}
   jpa:
@@ -31,6 +39,10 @@ spring:
     timeout-per-shutdown-phase: 20s
 
 spacz:
+  storage:
+    # Vendor-uploaded hall photos (served from /api/studyhalls/media/...). The gateway rejects requests over 2 MB.
+    hall-images-dir: ${HALL_IMAGES_DIR:./data/hall-images}
+    max-image-bytes: 1887436
   security:
     jwt:
       secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-0123456789}

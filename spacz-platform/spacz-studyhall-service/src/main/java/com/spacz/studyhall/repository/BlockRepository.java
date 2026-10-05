@@ -15,6 +15,8 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
 
     Optional<Block> findByIdAndStudyHallId(Long id, Long studyHallId);
 
+    boolean existsByFloorId(Long floorId);
+
     /** A block of any hall owned by the vendor (legacy API). */
     @EntityGraph(attributePaths = {"studyHall", "studyHall.vendor"})
     @Query("select b from Block b where b.id = :id and b.studyHall.vendor.vendorId = :vendorId")

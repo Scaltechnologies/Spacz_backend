@@ -4,6 +4,7 @@ import com.spacz.studyhall.client.UserServiceClient;
 import com.spacz.studyhall.client.dto.UserSummaryDto;
 import com.spacz.studyhall.config.BookingProperties;
 import com.spacz.studyhall.dto.PageResponse;
+import com.spacz.studyhall.dto.booking.BookingQuoteResponse;
 import com.spacz.studyhall.dto.booking.BookingResponse;
 import com.spacz.studyhall.dto.booking.CreateBookingRequest;
 import com.spacz.studyhall.dto.booking.VendorBookingResponse;
@@ -28,6 +29,7 @@ import com.spacz.studyhall.security.AuthenticatedUser;
 import com.spacz.studyhall.service.BookingService;
 import com.spacz.studyhall.service.EnrollmentService;
 import com.spacz.studyhall.service.support.PageableSupport;
+import com.spacz.studyhall.service.support.PriceBreakdown;
 import com.spacz.studyhall.service.support.VendorAccess;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,6 +74,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingProperties properties;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final BookingPricing pricing;
 
     /**
      * Double-booking prevention, in order:
@@ -81,7 +84,7 @@ public class BookingServiceImpl implements BookingService {
      *   <li>overlap check against PENDING/CONFIRMED bookings</li>
      *   <li>PostgreSQL exclusion constraint on (seat_id, daterange) as the last line of defence</li>
      * </ol>
-     * The price is always computed here (seat → block → hall), never taken from the client.
+     * The price is always computed here (seat → block → hall, then {@link BookingPricing}), never taken from the client.
      */
     @Override
     @Transactional
@@ -96,20 +99,7 @@ public class BookingServiceImpl implements BookingService {
         Seat seat = seatRepository.findByIdForUpdate(request.seatId())
                 .orElseThrow(() -> new ResourceNotFoundException("Seat", request.seatId()));
         StudyHall hall = seat.getStudyHall();
-        if (!hall.getId().equals(request.studyHallId())) {
-            throw new ResourceNotFoundException("Seat " + request.seatId() + " not found in study hall " + request.studyHallId());
-        }
-        if (!hall.isBookable()) {
-            throw new BusinessRuleException("STUDY_HALL_NOT_BOOKABLE", "This study hall is not accepting bookings");
-        }
-        if (seat.getStatus() != SeatStatus.AVAILABLE) {
-            throw new BusinessRuleException("SEAT_NOT_BOOKABLE", "Seat " + seat.getSeatNumber() + " is not available online");
-        }
-        BigDecimal unitPrice = seat.effectivePrice(plan);
-        if (unitPrice == null) {
-            throw new BusinessRuleException("PLAN_NOT_OFFERED",
-                    plan + " bookings are not offered for seat " + seat.getSeatNumber());
-        }
+        BigDecimal unitPrice = bookableUnitPrice(seat, request.studyHallId(), plan);
         Program program = null;
         if (request.programId() != null) {
             program = programRepository.findById(request.programId()).filter(Program::isActive)
@@ -117,17 +107,11 @@ public class BookingServiceImpl implements BookingService {
         }
 
         bookingRepository.expireStaleHolds(seat.getId(), now, BookingStatus.PENDING, BookingStatus.EXPIRED);
-        if (bookingRepository.existsOverlapping(seat.getId(), start, end, BookingStatus.OCCUPYING)) {
-            throw new ConflictException("SEAT_UNAVAILABLE",
-                    "Seat " + seat.getSeatNumber() + " is already booked for some of the selected dates");
-        }
-        if (bookingRepository.existsUserOverlap(userId, hall.getId(), start, end, now)) {
-            throw new ConflictException("DUPLICATE_BOOKING",
-                    "You already have a booking in this study hall for some of these dates");
-        }
+        checkAvailability(userId, seat, start, end, now);
 
         Booking booking = Booking.hold(newReference(), userId, seat, program, plan, start, end, unitPrice,
                 now.plus(properties.holdDuration()));
+        booking.applyPricing(pricing.price(userId, plan, start, end, unitPrice, now));
         if (properties.autoConfirm()) {
             booking.confirm(now);
         }
@@ -147,6 +131,59 @@ public class BookingServiceImpl implements BookingService {
             publish(booking, "BOOKING_CONFIRMED", "Booking " + booking.getBookingReference() + " confirmed");
         }
         return mapper.toResponse(booking);
+    }
+
+    /** Same validation and pricing as {@link #create}, without holding the seat. */
+    @Override
+    @Transactional(readOnly = true)
+    public BookingQuoteResponse quote(Long userId, CreateBookingRequest request) {
+        Instant now = clock.instant();
+        BookingPlan plan = request.effectivePlan();
+        LocalDate start = request.startDate();
+        LocalDate end = request.effectiveEndDate();
+        validateDates(plan, start, end, today());
+
+        Seat seat = seatRepository.findById(request.seatId())
+                .orElseThrow(() -> new ResourceNotFoundException("Seat", request.seatId()));
+        StudyHall hall = seat.getStudyHall();
+        BigDecimal unitPrice = bookableUnitPrice(seat, request.studyHallId(), plan);
+        checkAvailability(userId, seat, start, end, now);
+
+        PriceBreakdown price = pricing.price(userId, plan, start, end, unitPrice, now);
+        return new BookingQuoteResponse(hall.getId(), hall.getName(), seat.getId(), seat.getSeatNumber(), plan, start,
+                end, price.units(), price.unitPrice(), price.baseAmount(), price.discountAmount(), price.offerId(),
+                price.offerTitle(), price.platformCharges(), price.taxes(), price.total());
+    }
+
+    /** The seat must belong to the hall, the hall and seat must be bookable online, and the plan offered. */
+    private BigDecimal bookableUnitPrice(Seat seat, Long studyHallId, BookingPlan plan) {
+        StudyHall hall = seat.getStudyHall();
+        if (!hall.getId().equals(studyHallId)) {
+            throw new ResourceNotFoundException("Seat " + seat.getId() + " not found in study hall " + studyHallId);
+        }
+        if (!hall.isBookable()) {
+            throw new BusinessRuleException("STUDY_HALL_NOT_BOOKABLE", "This study hall is not accepting bookings");
+        }
+        if (seat.getStatus() != SeatStatus.AVAILABLE) {
+            throw new BusinessRuleException("SEAT_NOT_BOOKABLE", "Seat " + seat.getSeatNumber() + " is not available online");
+        }
+        BigDecimal unitPrice = seat.effectivePrice(plan);
+        if (unitPrice == null) {
+            throw new BusinessRuleException("PLAN_NOT_OFFERED",
+                    plan + " bookings are not offered for seat " + seat.getSeatNumber());
+        }
+        return unitPrice;
+    }
+
+    private void checkAvailability(Long userId, Seat seat, LocalDate start, LocalDate end, Instant now) {
+        if (bookingRepository.existsOverlapping(seat.getId(), start, end, BookingStatus.OCCUPYING)) {
+            throw new ConflictException("SEAT_UNAVAILABLE",
+                    "Seat " + seat.getSeatNumber() + " is already booked for some of the selected dates");
+        }
+        if (bookingRepository.existsUserOverlap(userId, seat.getStudyHall().getId(), start, end, now)) {
+            throw new ConflictException("DUPLICATE_BOOKING",
+                    "You already have a booking in this study hall for some of these dates");
+        }
     }
 
     @Override

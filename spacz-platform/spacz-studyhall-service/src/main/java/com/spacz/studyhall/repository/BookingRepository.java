@@ -72,6 +72,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     @EntityGraph(attributePaths = {"studyHall", "seat", "program"})
     Page<Booking> findByUserId(Long userId, Pageable pageable);
 
+    /** Used by first-booking-only offers. */
+    boolean existsByUserIdAndStatusIn(Long userId, List<BookingStatus> statuses);
+
     @EntityGraph(attributePaths = {"studyHall", "seat", "program"})
     Page<Booking> findByUserIdAndStatus(Long userId, BookingStatus status, Pageable pageable);
 

@@ -5,7 +5,7 @@
 # team's standard spacz-mysql container) or a locally installed MySQL. This keeps
 # a single `spacz` database and never touches its data volume.
 #
-#   docker compose up -d --build     # build + start on http://localhost:8080
+#   docker compose up -d --build     # build + start on http://localhost:8085
 #   docker compose logs -f partner-service
 #   docker compose down
 services:
@@ -15,9 +15,10 @@ services:
     container_name: spacz-partner-service
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # 8085 on the host: 8080 is taken by the spacz-platform gateway.
+      - "${PARTNER_HOST_PORT:-8085}:8080"
     environment:
-      DB_URL: ${DB_URL:-jdbc:mysql://host.docker.internal:3306/spacz?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+      DB_URL: ${DB_URL:-jdbc:mysql://host.docker.internal:${MYSQL_HOST_PORT:-3306}/spacz?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-root}
     extra_hosts:

@@ -9,6 +9,8 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q package -DskipTests
 # ---- runtime ----
 FROM eclipse-temurin:17-jre
 RUN groupadd --system spacz && useradd --system --gid spacz --uid 1001 --no-create-home spacz
+# Private user documents (mounted as a persistent volume by docker-compose).
+RUN mkdir -p /data/user-documents && chown spacz:spacz /data/user-documents
 WORKDIR /app
 COPY --from=build /build/target/spacz-user-service.jar app.jar
 USER spacz
