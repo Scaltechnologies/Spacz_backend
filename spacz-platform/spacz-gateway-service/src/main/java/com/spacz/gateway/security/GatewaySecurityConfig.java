@@ -68,6 +68,13 @@ public class GatewaySecurityConfig {
                                 "/amenities/**", "/images/**").hasRole("VENDOR")
                         .pathMatchers("/api/vendors/**").hasRole("VENDOR")
                         .pathMatchers("/api/users/**").hasAnyRole("USER", "ADMIN")
+                        // Mirrors studyhall-service: hall writes are VENDOR only (public GETs are matched above).
+                        .pathMatchers("/api/studyhalls", "/api/studyhalls/**").hasRole("VENDOR")
+                        // Booking actions are students only; GET /api/bookings/{id} stays open to the
+                        // student, the hall's vendor and ADMIN (checked by studyhall-service).
+                        .pathMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/*/confirm",
+                                "/api/bookings/*/cancel").hasRole("USER")
+                        .pathMatchers(HttpMethod.GET, "/api/bookings/me").hasRole("USER")
                         .pathMatchers("/api/**").authenticated()
                         .anyExchange().denyAll())
                 .oauth2ResourceServer(oauth -> oauth

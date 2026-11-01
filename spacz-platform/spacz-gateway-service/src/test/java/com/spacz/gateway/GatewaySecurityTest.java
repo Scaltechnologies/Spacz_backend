@@ -97,6 +97,35 @@ class GatewaySecurityTest {
     }
 
     @Test
+    void bookingActionsNeedUserAndHallWritesNeedVendor() {
+        for (String role : new String[]{"VENDOR", "ADMIN"}) {
+            client.post().uri("/api/bookings").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, role))
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}").exchange()
+                    .expectStatus().isForbidden();
+            client.post().uri("/api/bookings/7/cancel").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, role))
+                    .exchange().expectStatus().isForbidden();
+            client.get().uri("/api/bookings/me").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, role))
+                    .exchange().expectStatus().isForbidden();
+        }
+        client.post().uri("/api/bookings").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "USER"))
+                .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}").exchange()
+                .expectStatus().is5xxServerError();
+        // One booking is visible to its student, the hall's vendor and ADMIN; the service decides which.
+        client.get().uri("/api/bookings/7").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "VENDOR"))
+                .exchange().expectStatus().is5xxServerError();
+
+        client.post().uri("/api/studyhalls").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "USER"))
+                .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}").exchange()
+                .expectStatus().isForbidden();
+        client.delete().uri("/api/studyhalls/3").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(1, "ADMIN"))
+                .exchange().expectStatus().isForbidden();
+        client.post().uri("/api/studyhalls").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "VENDOR"))
+                .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}").exchange()
+                .expectStatus().is5xxServerError();
+        client.get().uri("/api/studyhalls/3").exchange().expectStatus().is5xxServerError();
+    }
+
+    @Test
     void internalEndpointsAreNeverExposed() {
         client.get().uri("/internal/accounts/stats").header("X-Internal-Api-Key", "guess")
                 .header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(1, "ADMIN")).exchange()
