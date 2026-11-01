@@ -1,0 +1,112 @@
+# On every push to main: test -> build & push the 5 images to GHCR -> deploy them to the VPS.
+# Needs repository secrets VPS_HOST, VPS_USER, VPS_SSH_KEY (and optionally VPS_PORT).
+# See spacz-platform/docs/DEPLOYMENT.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "spacz-platform/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spacz-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: spacz-platform/**/pom.xml
+      - name: Maven verify
+        run: chmod +x mvnw && ./mvnw -B -ntp clean verify
+
+  images:
+    name: Image ${{ matrix.service }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [auth-service, user-service, studyhall-service, admin-service, gateway-service]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image name
+        id: meta
+        run: echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: spacz-platform/spacz-${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.registry }}/spacz-${{ matrix.service }}:${{ github.sha }}
+            ${{ steps.meta.outputs.registry }}/spacz-${{ matrix.service }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy:
+    name: Deploy to VPS
+    needs: images
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy deployment files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "spacz-platform/deploy,spacz-platform/docker/postgres/init-databases.sh"
+          target: /opt/spacz
+          strip_components: 1
+
+      - name: Pull & restart
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: IMAGE_TAG,GHCR_USER,GHCR_TOKEN
+          command_timeout: 15m
+          script: |
+            set -e
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            bash /opt/spacz/deploy/deploy.sh "$IMAGE_TAG"
+            docker logout ghcr.io
