@@ -1,0 +1,33 @@
+# Runs the test suite of all five services on every pull request.
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - "spacz-platform/**"
+      - ".github/workflows/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spacz-platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: spacz-platform/**/pom.xml
+
+      # Testcontainers uses the Docker engine that ubuntu-latest runners already have.
+      - name: Maven verify
+        run: chmod +x mvnw && ./mvnw -B -ntp clean verify
