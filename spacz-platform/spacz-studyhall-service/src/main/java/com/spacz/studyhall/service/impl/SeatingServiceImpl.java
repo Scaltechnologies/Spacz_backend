@@ -204,16 +204,20 @@ public class SeatingServiceImpl implements SeatingService {
     @Override
     @Transactional
     public void deleteBlock(Long vendorId, Long studyHallId, Long blockId) {
-        StudyHall hall = vendorAccess.writableHall(vendorId, studyHallId);
-        Block block = findBlock(studyHallId, blockId);
-        if (bookingRepository.existsBySeat_Block_Id(blockId)
-                || block.getSeats().stream().anyMatch(s -> enrollmentRepository.existsBySeat_Id(s.getId()))) {
+        vendorAccess.writableHall(vendorId, studyHallId);
+        findBlock(studyHallId, blockId);
+        // Same rule as before (any booking or any enrollment on any of its seats), one query each.
+        if (bookingRepository.existsBySeat_Block_Id(blockId) || enrollmentRepository.existsBySeat_Block_Id(blockId)) {
             throw new ConflictException("BLOCK_IN_USE", "This block has booking or student history. "
                     + "Set its seats to INACTIVE instead.");
         }
-        // The layout and its cells go with the block (ON DELETE CASCADE).
-        hall.getBlocks().remove(block);
-        blockRepository.delete(block);
+        // Bulk statements instead of entity removal: removing the block from the hall cascaded to one
+        // version-checked DELETE per seat (3,600 for a 60 x 60 block) and loaded every seat first.
+        blockRepository.deleteLayoutCellsOfBlock(blockId);
+        blockRepository.deleteLayoutFixturesOfBlock(blockId);
+        blockRepository.deleteLayoutOfBlock(blockId);
+        blockRepository.deleteSeatsOfBlock(blockId);
+        blockRepository.deleteBlockRow(blockId);
     }
 
     /** Replaces the walkways, entrances, tables ... of a block; its seat cells stay as they are. */
