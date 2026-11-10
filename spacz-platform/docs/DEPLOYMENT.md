@@ -15,14 +15,23 @@ ports 80/443. SPACZ is added next to them without touching them:
                    1. test      ./mvnw verify (all 5 services)
                    2. images    build 5 Docker images ──► ghcr.io/scaltechnologies/spacz-*:<commit-sha>
                    3. deploy    SSH into the VPS as "deploy" ──► deploy.sh: docker compose pull + up --wait
+                                   └─ a container not healthy? ──► previous build restarted automatically
+                   4. smoke     calls https://api.spacz.in (health, programs, halls, login, auth check)
+                                   └─ a check fails? ──► previous build restarted automatically
 
  Internet ──443──► nginx (existing, HTTPS via certbot) ──► 127.0.0.1:18080 gateway ──► auth/user/studyhall/admin
                                                                                         └─► postgres (private)
 ```
 
 * Pull requests only run the tests (`.github/workflows/ci.yml`).
-* Pushes to `main` that touch `spacz-platform/**` test, build and deploy (`.github/workflows/deploy.yml`).
-  A deploy can also be started by hand: **Actions → Deploy → Run workflow**.
+* Pushes to `main` that touch `spacz-platform/**` test, build, deploy and smoke-test
+  (`.github/workflows/deploy.yml`). A red run means the live API is still on the last good build.
+* A deploy can also be started by hand: **Actions → Deploy → Run workflow**.
+  * `image_tag` empty: rebuild and deploy the current `main`.
+  * `image_tag` = `rollback`: go back to the build before the current one (no rebuild).
+  * `image_tag` = a commit SHA: deploy that exact earlier build (no rebuild).
+* The smoke test uses `https://api.spacz.in`. To change it, set the repository variable
+  `PUBLIC_API_URL` (**Settings → Secrets and variables → Actions → Variables**).
 * Secrets (DB passwords, JWT key …) live **only on the server** in `/opt/spacz/.env`.
 
 Files in `deploy/`:
@@ -127,7 +136,7 @@ Run these on the server as `deploy` or root.
 | Status | `docker ps --filter name=spacz` |
 | Logs of one service | `docker logs -f --tail 200 spacz-auth-service-1` |
 | Restart SPACZ | `bash /opt/spacz/deploy/deploy.sh` |
-| Roll back | `bash /opt/spacz/deploy/deploy.sh <older commit sha>` (GHCR login needed, see below) |
+| Roll back | Easiest: **Actions → Deploy → Run workflow** with `image_tag` = `rollback`. On the server: `bash /opt/spacz/deploy/deploy.sh --rollback` or `… deploy.sh <older commit sha>` (GHCR login needed, see below) |
 | Change a setting | edit `/opt/spacz/.env`, then `bash /opt/spacz/deploy/deploy.sh` |
 | Manual backup | `bash /opt/spacz/deploy/backup.sh` |
 | Open psql | `docker exec -it spacz-postgres-1 psql -U postgres` |
@@ -148,7 +157,11 @@ Create a GitHub *classic* personal access token with only `read:packages` and ru
 | Deploy step: `Permission denied (publickey)` | `VPS_SSH_KEY` is wrong, or the `.pub` key is not in `/home/deploy/.ssh/authorized_keys` |
 | `denied` / `unauthorized` when pulling | check `IMAGE_REGISTRY` in `.env` is lower case and the workflow has `packages: read` |
 | `port is already allocated` | another app uses 18080: change `GATEWAY_HOST_PORT` in `.env` and in the nginx file |
-| `--wait` timed out / container unhealthy | `docker logs spacz-<name>-1`: usually a wrong DB password or a missing `.env` value |
+| Deploy red, "did not become healthy … Rolling back" | the new build was rejected and the old one is running again; the run log shows the failing container's logs. Otherwise: `docker logs spacz-<name>-1`: usually a wrong DB password or a missing `.env` value |
 | Container restarts with exit code 137 | out of memory: lower `*_MEM_LIMIT` in `.env` |
 | 502 Bad Gateway from nginx | SPACZ is not running or the port in the nginx file differs from `GATEWAY_HOST_PORT` |
 | CORS errors in the frontend | add the exact frontend origin (`https://…`, no trailing slash) to `CORS_ALLOWED_ORIGINS` and redeploy |
+
+**Rollbacks and the database.** A rollback changes only the code, never the data. Flyway
+migrations only move forward. Before merging a migration that removes or renames a column, make
+sure the previous build still works with the new schema (add first, remove in a later release).

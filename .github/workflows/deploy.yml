@@ -1,6 +1,12 @@
-# On every push to main: test -> build & push the 5 images to GHCR -> deploy them to the VPS.
-# Needs repository secrets VPS_HOST, VPS_USER, VPS_SSH_KEY (and optionally VPS_PORT).
-# See spacz-platform/docs/DEPLOYMENT.md.
+# On every push to main: test -> build & push the 5 images to GHCR -> deploy them to the VPS ->
+# smoke-test the public API (and roll back automatically if it fails).
+#
+# Manual run (Actions tab -> Deploy -> Run workflow):
+#   - leave "image_tag" empty to rebuild and redeploy the current main
+#   - enter an earlier commit SHA (or "rollback") to redeploy an older build without rebuilding
+#
+# Needs repository secrets VPS_HOST, VPS_USER, VPS_SSH_KEY (and optionally VPS_PORT), and optionally
+# the repository variable PUBLIC_API_URL (default https://api.spacz.in). See spacz-platform/docs/DEPLOYMENT.md.
 name: Deploy
 
 on:
@@ -10,6 +16,11 @@ on:
       - "spacz-platform/**"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Redeploy an existing build: a commit SHA, or 'rollback' for the previous build. Empty = build main."
+        required: false
+        default: ""
 
 concurrency:
   group: deploy-production
@@ -19,16 +30,21 @@ permissions:
   contents: read
   packages: write
 
+env:
+  REQUESTED_TAG: ${{ inputs.image_tag || '' }}
+  PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL || 'https://api.spacz.in' }}
+
 jobs:
   test:
     name: Build & test
+    if: ${{ (inputs.image_tag || '') == '' }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: spacz-platform
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -46,21 +62,21 @@ jobs:
       matrix:
         service: [auth-service, user-service, studyhall-service, admin-service, gateway-service]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Image name
         id: meta
         run: echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: spacz-platform/spacz-${{ matrix.service }}
           push: true
@@ -73,16 +89,33 @@ jobs:
   deploy:
     name: Deploy to VPS
     needs: images
+    # Runs after a successful build, or directly when an existing tag was requested (build skipped).
+    if: ${{ !cancelled() && (needs.images.result == 'success' || (needs.images.result == 'skipped' && (inputs.image_tag || '') != '')) }}
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_API_URL || 'https://api.spacz.in' }}
     permissions:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+
+      - name: Resolve image tag
+        id: tag
+        run: |
+          case "$REQUESTED_TAG" in
+            "")       tag="$GITHUB_SHA" ;;
+            rollback) tag="--rollback" ;;
+            *)        tag="$REQUESTED_TAG" ;;
+          esac
+          if [[ "$tag" != "--rollback" && ! "$tag" =~ ^[A-Za-z0-9._-]{1,128}$ ]]; then
+            echo "::error::Invalid image tag '$tag'"; exit 1
+          fi
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Copy deployment files
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -92,10 +125,10 @@ jobs:
           target: /opt/spacz
           strip_components: 1
 
-      - name: Pull & restart
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Pull & restart (rolls back automatically if unhealthy)
+        uses: appleboy/ssh-action@v1.2.5
         env:
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ steps.tag.outputs.value }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -104,9 +137,62 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           envs: IMAGE_TAG,GHCR_USER,GHCR_TOKEN
-          command_timeout: 15m
+          command_timeout: 20m
           script: |
             set -e
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null' EXIT
             bash /opt/spacz/deploy/deploy.sh "$IMAGE_TAG"
-            docker logout ghcr.io
+
+      # Through nginx and the gateway: proves the public URL, the gateway and the services behind it answer.
+      - name: Smoke test public API
+        id: smoke
+        run: |
+          check() {  # check <expected status> <method> <path> [json body]
+            local code
+            for attempt in $(seq 1 12); do
+              if [[ -n "${4:-}" ]]; then
+                code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -X "$2" -H 'Content-Type: application/json' -d "$4" "$PUBLIC_API_URL$3" || true)
+              else
+                code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -X "$2" "$PUBLIC_API_URL$3" || true)
+              fi
+              [[ "$code" == "$1" ]] && { echo "OK   $2 $3 -> $code"; return 0; }
+              sleep 5
+            done
+            echo "::error::$2 $3 returned $code (expected $1)"; return 1
+          }
+          check 200 GET  /actuator/health                     # nginx + gateway
+          check 200 GET  /api/programs                        # studyhall-service + database
+          check 200 GET  "/api/studyhalls?size=1"             # studyhall-service search
+          check 400 POST /api/auth/login '{}'                 # auth-service answers (validation error, not 5xx)
+          check 401 GET  /api/users/me                        # JWT protection is on
+
+      - name: Roll back after failed smoke test
+        if: ${{ failure() && steps.smoke.conclusion == 'failure' && env.REQUESTED_TAG != 'rollback' }}
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: GHCR_USER,GHCR_TOKEN
+          command_timeout: 20m
+          script: |
+            set -e
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null' EXIT
+            bash /opt/spacz/deploy/deploy.sh --rollback
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          {
+            echo "### Deploy ${{ job.status }}"
+            echo "- Requested: \`${{ steps.tag.outputs.value }}\`"
+            echo "- API: $PUBLIC_API_URL"
+            echo "- Smoke test: ${{ steps.smoke.conclusion || 'not run' }}"
+            echo "- To roll back: Actions → Deploy → Run workflow → image_tag = \`rollback\` (or a commit SHA)"
+          } >> "$GITHUB_STEP_SUMMARY"
