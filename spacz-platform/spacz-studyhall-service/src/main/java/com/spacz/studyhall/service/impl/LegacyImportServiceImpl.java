@@ -6,8 +6,10 @@ import com.spacz.studyhall.dto.internal.ImportVendorRequest;
 import com.spacz.studyhall.dto.internal.ImportVendorResult;
 import com.spacz.studyhall.entity.Amenity;
 import com.spacz.studyhall.entity.Block;
+import com.spacz.studyhall.entity.BlockLayout;
 import com.spacz.studyhall.entity.Booking;
 import com.spacz.studyhall.entity.BookingStatus;
+import com.spacz.studyhall.entity.LayoutType;
 import com.spacz.studyhall.entity.Seat;
 import com.spacz.studyhall.entity.SeatStatus;
 import com.spacz.studyhall.entity.SeatType;
@@ -16,6 +18,7 @@ import com.spacz.studyhall.entity.StudyHallImage;
 import com.spacz.studyhall.entity.VendorProfile;
 import com.spacz.studyhall.mapper.LegacyMapper;
 import com.spacz.studyhall.repository.AmenityRepository;
+import com.spacz.studyhall.repository.BlockLayoutRepository;
 import com.spacz.studyhall.repository.BookingRepository;
 import com.spacz.studyhall.repository.SeatRepository;
 import com.spacz.studyhall.repository.StudyHallRepository;
@@ -53,6 +56,7 @@ public class LegacyImportServiceImpl implements LegacyImportService {
     private final VendorProfileRepository vendorRepository;
     private final StudyHallRepository studyHallRepository;
     private final SeatRepository seatRepository;
+    private final BlockLayoutRepository layoutRepository;
     private final AmenityRepository amenityRepository;
     private final BookingRepository bookingRepository;
     private final EnrollmentService enrollmentService;
@@ -105,10 +109,13 @@ public class LegacyImportServiceImpl implements LegacyImportService {
             }
 
             Set<String> seatNumbers = new HashSet<>();
+            List<BlockLayout> layouts = new ArrayList<>();
             int blockOrder = 1;
             for (ImportVendorRequest.Block source2 : nullSafe(source.blocks())) {
-                Block block = Block.of(hall, blank(source2.blockName()) ? "Block " + source2.legacyBlockId()
+                Block block = Block.of(hall.defaultFloor(), blank(source2.blockName()) ? "Block " + source2.legacyBlockId()
                         : source2.blockName().trim(), 1, 10, blockOrder++);
+                BlockLayout layout = BlockLayout.of(block, LayoutType.GRID);
+                layouts.add(layout);
                 block.setLegacyBlockId(source2.legacyBlockId());
                 block.setDailyPrice(LegacyMapper.toPrice(source2.blockDailyPrice()));
                 block.setMonthlyPrice(LegacyMapper.toPrice(source2.blockMonthlyPrice()));
@@ -120,7 +127,7 @@ public class LegacyImportServiceImpl implements LegacyImportService {
                     addFlag(block, catalog, LegacyMapper.NEWSPAPER, source2.amenity().newspapers());
                 }
                 for (ImportVendorRequest.Seat seatSource : nullSafe(source2.seats())) {
-                    int[] cell = block.nextFreeCell().orElse(null);
+                    int[] cell = layout.nextFreeCell().orElse(null);
                     if (cell == null) {
                         warnings.add("seat " + seatSource.legacySeatId() + ": block " + source2.legacyBlockId() + " is full, skipped");
                         continue;
@@ -134,7 +141,7 @@ public class LegacyImportServiceImpl implements LegacyImportService {
                     seat.setLegacySeatId(seatSource.legacySeatId());
                     seat.setStatus(seatSource.reserved() ? SeatStatus.RESERVED : SeatStatus.AVAILABLE);
                     seat.setPricePerDay(LegacyMapper.toPrice(seatSource.seatPrice()));
-                    block.getSeats().add(seat);
+                    layout.addSeat(seat);
                 }
                 if (block.effectiveDailyPrice() == null && block.getSeats().stream().allMatch(s -> s.getPricePerDay() == null)) {
                     warnings.add("block " + source2.legacyBlockId() + ": no price set; its seats cannot be booked until a price is added");
@@ -142,6 +149,7 @@ public class LegacyImportServiceImpl implements LegacyImportService {
                 hall.getBlocks().add(block);
             }
             studyHallRepository.save(hall);
+            layoutRepository.saveAll(layouts);
         }
         studyHallRepository.flush();
         log.info("Imported legacy owner {} as vendor {} ({} warnings)", request.legacyOwnerId(), request.vendorId(), warnings.size());

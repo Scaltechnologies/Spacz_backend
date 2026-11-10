@@ -63,7 +63,7 @@ public class StudyHallMapper {
     }
 
     public BlockSummary toSummary(Block b) {
-        return new BlockSummary(b.getId(), b.getName(), b.getTotalRows(), b.getTotalColumns(), b.getSeats().size(),
+        return new BlockSummary(b.getId(), b.getFloor().getId(), b.getName(), b.getTotalRows(), b.getTotalColumns(), b.getSeats().size(),
                 b.effectiveDailyPrice(), b.effectiveMonthlyPrice(),
                 b.getAmenities().stream().map(Amenity::getName).sorted().toList());
     }

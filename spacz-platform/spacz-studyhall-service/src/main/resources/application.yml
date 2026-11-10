@@ -40,7 +40,8 @@ spacz:
   studyhall:
     approval-required: ${STUDYHALL_APPROVAL_REQUIRED:true}
     max-images: 20
-    max-layout-cells: 2500
+    # 60 x 60: the largest grid the layout tables (V6) and the Partner app editor allow
+    max-layout-cells: 3600
   booking:
     hold-duration: ${BOOKING_HOLD_DURATION:15m}
     auto-confirm: ${BOOKING_AUTO_CONFIRM:false}

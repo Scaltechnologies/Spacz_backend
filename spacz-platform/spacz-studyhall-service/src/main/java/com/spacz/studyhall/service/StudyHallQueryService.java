@@ -5,6 +5,7 @@ import com.spacz.studyhall.dto.hall.StudyHallDetailResponse;
 import com.spacz.studyhall.dto.hall.StudyHallSearchCriteria;
 import com.spacz.studyhall.dto.hall.StudyHallSummaryResponse;
 import com.spacz.studyhall.dto.seat.AvailabilityResponse;
+import com.spacz.studyhall.dto.seat.HallLayoutResponse;
 import com.spacz.studyhall.dto.seat.SeatMapResponse;
 import com.spacz.studyhall.security.AuthenticatedUser;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +22,8 @@ public interface StudyHallQueryService {
     StudyHallDetailResponse get(Long studyHallId, AuthenticatedUser caller);
 
     SeatMapResponse seatMap(Long studyHallId, AuthenticatedUser caller, LocalDate startDate, LocalDate endDate);
+
+    HallLayoutResponse layout(Long studyHallId, AuthenticatedUser caller, LocalDate startDate, LocalDate endDate);
 
     AvailabilityResponse availability(Long studyHallId, AuthenticatedUser caller, LocalDate startDate, LocalDate endDate);
 }
