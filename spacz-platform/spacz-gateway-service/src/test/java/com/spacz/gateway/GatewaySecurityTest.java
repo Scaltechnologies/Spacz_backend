@@ -126,6 +126,33 @@ class GatewaySecurityTest {
     }
 
     @Test
+    void roleRestrictedGetsUnderPublicPathsAreCheckedAtTheEdge() {
+        String[] vendorOnly = {"/api/vendors/me", "/api/vendors/me/bookings", "/api/studyhalls/3/blocks",
+                "/api/studyhalls/3/enrollments", "/api/studyhalls/3/bookings"};
+        for (String uri : vendorOnly) {
+            client.get().uri(uri).exchange().expectStatus().isUnauthorized();
+            client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "USER")).exchange()
+                    .expectStatus().isForbidden();
+            client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(1, "ADMIN")).exchange()
+                    .expectStatus().isForbidden();
+            client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "VENDOR")).exchange()
+                    .expectStatus().is5xxServerError();
+        }
+        for (String uri : new String[]{"/api/programs/all", "/api/amenities/all"}) {
+            client.get().uri(uri).exchange().expectStatus().isUnauthorized();
+            client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "VENDOR")).exchange()
+                    .expectStatus().isForbidden();
+            client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(1, "ADMIN")).exchange()
+                    .expectStatus().is5xxServerError();
+        }
+        // Their public neighbours stay open.
+        client.get().uri("/api/vendors/12").exchange().expectStatus().is5xxServerError();
+        client.get().uri("/api/studyhalls/3/seats").exchange().expectStatus().is5xxServerError();
+        client.get().uri("/api/studyhalls/3/availability").exchange().expectStatus().is5xxServerError();
+        client.get().uri("/api/programs/4").exchange().expectStatus().is5xxServerError();
+    }
+
+    @Test
     void internalEndpointsAreNeverExposed() {
         client.get().uri("/internal/accounts/stats").header("X-Internal-Api-Key", "guess")
                 .header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(1, "ADMIN")).exchange()

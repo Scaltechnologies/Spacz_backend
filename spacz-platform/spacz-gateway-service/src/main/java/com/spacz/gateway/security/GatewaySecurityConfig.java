@@ -60,6 +60,12 @@ public class GatewaySecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/register/user",
                                 "/api/auth/register/vendor", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/otp/request", "/api/auth/otp/verify").permitAll()
+                        // Role-restricted GETs that the public GET patterns below would otherwise match.
+                        .pathMatchers(HttpMethod.GET, "/api/vendors/me", "/api/vendors/me/**",
+                                "/api/studyhalls/*/blocks", "/api/studyhalls/*/blocks/**",
+                                "/api/studyhalls/*/enrollments", "/api/studyhalls/*/enrollments/**",
+                                "/api/studyhalls/*/bookings", "/api/studyhalls/*/bookings/**").hasRole("VENDOR")
+                        .pathMatchers(HttpMethod.GET, "/api/programs/all", "/api/amenities/all").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.GET, "/api/studyhalls", "/api/studyhalls/**", "/api/programs",
                                 "/api/programs/**", "/api/amenities", "/api/amenities/**", "/api/vendors/*").permitAll()
                         .pathMatchers("/api/admin/**").hasRole("ADMIN")
