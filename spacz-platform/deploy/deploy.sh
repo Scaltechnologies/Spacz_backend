@@ -50,6 +50,16 @@ start() {
   compose pull --quiet && compose up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
 }
 
+# Restore point: a rollback only swaps images, it cannot undo database migrations or data changes
+# the new build applies on startup. Skipped on the very first deploy (no database yet).
+if [[ "${SPACZ_SKIP_PREDEPLOY_BACKUP:-}" != 1 ]] && [[ -n "$(docker ps -q --filter 'name=^spacz-postgres-1$')" ]]; then
+  echo "==> Backup before deploying $IMAGE_TAG"
+  if ! SPACZ_BACKUP_ALLOW_MISSING_VOLUMES=1 bash "$APP_DIR/deploy/backup.sh" pre-deploy; then
+    echo "!!! Pre-deploy backup failed; nothing was changed. (Set SPACZ_SKIP_PREDEPLOY_BACKUP=1 to override.)" >&2
+    exit 1
+  fi
+fi
+
 echo "==> Deploying image tag $IMAGE_TAG (currently running: ${CURRENT_TAG:-none})"
 if ! start "$IMAGE_TAG"; then
   echo "!!! Tag $IMAGE_TAG did not become healthy. Container state and recent logs:" >&2

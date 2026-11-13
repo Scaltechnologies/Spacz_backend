@@ -40,9 +40,10 @@ Files in `deploy/`:
 |---|---|
 | `docker-compose.prod.yml` | production stack (pulls images, no build, memory limits, log rotation) |
 | `nginx/spacz-api.conf` | site file for the existing nginx |
-| `deploy.sh` | pull + restart + wait for healthy; also used for rollback |
+| `deploy.sh` | backup + pull + restart + wait for healthy; also used for rollback |
 | `vps-setup.sh` | one-time: `deploy` user, `/opt/spacz`, swap, nightly backup |
-| `backup.sh` | nightly `pg_dumpall`, keeps 14 days |
+| `backup.sh` | nightly + pre-deploy backup of the databases and the upload volumes, keeps 14 days |
+| `restore.sh` | restores a backup set (dry run unless `--yes`) |
 | `.env.production.example` | template for `/opt/spacz/.env` |
 
 ---
@@ -139,6 +140,7 @@ Run these on the server as `deploy` or root.
 | Roll back | Easiest: **Actions → Deploy → Run workflow** with `image_tag` = `rollback`. On the server: `bash /opt/spacz/deploy/deploy.sh --rollback` or `… deploy.sh <older commit sha>` (GHCR login needed, see below) |
 | Change a setting | edit `/opt/spacz/.env`, then `bash /opt/spacz/deploy/deploy.sh` |
 | Manual backup | `bash /opt/spacz/deploy/backup.sh` |
+| Restore a backup | `bash /opt/spacz/deploy/restore.sh /opt/spacz/backups/<set>` (dry run), then add `--all --yes` (or `--db`, `--hall-images`, `--user-docs`) |
 | Open psql | `docker exec -it spacz-postgres-1 psql -U postgres` |
 
 Phone OTP codes go to the logs while `OTP_SMS_PROVIDER=log`:
@@ -148,7 +150,18 @@ Phone OTP codes go to the logs while `OTP_SMS_PROVIDER=log`:
 Create a GitHub *classic* personal access token with only `read:packages` and run once as `deploy`:
 `echo <token> | docker login ghcr.io -u <github-username> --password-stdin`.
 
-**Backups** are written to `/opt/spacz/backups`. Copy them off the server regularly.
+**Backups** are written to `/opt/spacz/backups`, one directory per run (`<date>-<time>[-label]`), never
+overwriting an earlier one. Each set holds one dump per database (`db/*.sql.gz`, plus `db/globals.sql.gz`
+with the roles), the hall photo and student document volumes (`hall-images.tar.gz`,
+`user-documents.tar.gz`), a `MANIFEST` (running image tag) and `SHA256SUMS`. They are taken nightly at
+02:30 and by `deploy.sh` before every deploy (`…-pre-deploy`); sets older than 14 days are removed.
+The sets contain personal data (Aadhaar images): copy them off the server regularly, to encrypted storage.
+
+**Restore** with `restore.sh`: it checks the checksums, takes a `…-pre-restore` backup of the current
+state, stops the application containers, replaces the chosen databases / volumes and starts the
+containers again. A rollback (`deploy.sh --rollback`) only swaps images; it does not undo database
+migrations, so after a release with migrations restore the matching `…-pre-deploy` set together with the
+rollback if the older build cannot work with the newer schema.
 
 ## Troubleshooting
 

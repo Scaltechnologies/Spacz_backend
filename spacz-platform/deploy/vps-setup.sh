@@ -34,7 +34,7 @@ if ! swapon --show | grep -q .; then
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-echo "==> Nightly database backup at 02:30"
+echo "==> Nightly backup (databases + upload volumes) at 02:30"
 cat > /etc/cron.d/spacz-backup <<'EOF'
 30 2 * * * deploy /bin/bash /opt/spacz/deploy/backup.sh >> /opt/spacz/backups/backup.log 2>&1
 EOF

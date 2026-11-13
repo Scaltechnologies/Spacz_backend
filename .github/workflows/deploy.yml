@@ -166,6 +166,9 @@ jobs:
           check 200 GET  "/api/studyhalls?size=1"             # studyhall-service search
           check 400 POST /api/auth/login '{}'                 # auth-service answers (validation error, not 5xx)
           check 401 GET  /api/users/me                        # JWT protection is on
+          check 200 GET  /api/offers                          # admin-service + its database (live offers)
+          check 200 GET  /api/studyhalls/locations            # studyhall-service city list
+          check 401 GET  /api/notifications                   # student notifications need a login
 
       - name: Roll back after failed smoke test
         if: ${{ failure() && steps.smoke.conclusion == 'failure' && env.REQUESTED_TAG != 'rollback' }}
