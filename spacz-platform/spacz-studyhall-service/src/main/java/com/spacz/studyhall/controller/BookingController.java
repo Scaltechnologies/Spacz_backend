@@ -2,6 +2,7 @@ package com.spacz.studyhall.controller;
 
 import com.spacz.studyhall.config.OpenApiConfig;
 import com.spacz.studyhall.dto.PageResponse;
+import com.spacz.studyhall.dto.booking.BookingQuoteResponse;
 import com.spacz.studyhall.dto.booking.BookingResponse;
 import com.spacz.studyhall.dto.booking.CancelBookingRequest;
 import com.spacz.studyhall.dto.booking.CreateBookingRequest;
@@ -47,6 +48,17 @@ public class BookingController {
     public BookingResponse create(@AuthenticationPrincipal AuthenticatedUser user,
                                   @Valid @RequestBody CreateBookingRequest request) {
         return bookingService.create(user.userId(), request);
+    }
+
+    @PostMapping("/quote")
+    @PreAuthorize("hasRole('USER')")
+    @Operation(summary = "Price a prospective booking",
+            description = "Same body and validation as POST /api/bookings, without holding the seat. Returns base amount, "
+                    + "the best applicable admin offer's discount, platform charges, taxes and total, all computed on the "
+                    + "server. 409 SEAT_UNAVAILABLE / DUPLICATE_BOOKING and 422 errors as for booking.")
+    public BookingQuoteResponse quote(@AuthenticationPrincipal AuthenticatedUser user,
+                                      @Valid @RequestBody CreateBookingRequest request) {
+        return bookingService.quote(user.userId(), request);
     }
 
     @GetMapping("/me")

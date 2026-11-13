@@ -13,6 +13,8 @@ public class BookingMapper {
                 b.getSeat().getSeatNumber(), b.getProgram() == null ? null : b.getProgram().getId(),
                 b.getProgram() == null ? null : b.getProgram().getName(), b.getPlan(), b.getStartDate(),
                 b.getEndDate(), b.units(), b.getUnitPrice(), b.getTotalPrice(), b.getStatus(), b.getHoldExpiresAt(),
-                b.getConfirmedAt(), b.getCancelledAt(), b.getCancellationReason(), b.getCreatedAt(), b.getUpdatedAt());
+                b.getConfirmedAt(), b.getCancelledAt(), b.getCancellationReason(), b.getCreatedAt(), b.getUpdatedAt(),
+                b.getBaseAmount(), b.getDiscountAmount(), b.getOfferId(), b.getOfferTitle(), b.getPlatformCharges(),
+                b.getTaxAmount());
     }
 }

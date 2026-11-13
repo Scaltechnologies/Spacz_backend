@@ -39,6 +39,11 @@ spring:
           uri: ${ADMIN_SERVICE_URL:http://localhost:8084}
           predicates:
             - Path=/api/admin/**
+        # Student-facing admin content (live offers, notifications).
+        - id: admin-content
+          uri: ${ADMIN_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/offers,/api/offers/**,/api/notifications,/api/notifications/**
         # OpenAPI documents of each service, aggregated in the gateway's Swagger UI.
         - id: auth-docs
           uri: ${AUTH_SERVICE_URL:http://localhost:8081}

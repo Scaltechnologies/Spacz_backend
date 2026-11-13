@@ -1,4 +1,4 @@
-# SPACZ platform: PostgreSQL + 5 microservices.
+# SPACZ platform: PostgreSQL + MySQL + 5 microservices.
 #   cp .env.example .env   # then set real secrets
 #   docker compose up -d --build
 # Only the gateway (8080) needs to be reachable by the frontend. The service ports are published
@@ -41,6 +41,25 @@ services:
       timeout: 5s
       retries: 20
 
+  # MySQL for the legacy spacz app / partner service (database "spacz"). The platform services use
+  # postgres above. Published on 3307 by default because a local MySQL often already owns 3306.
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    networks: [spacz]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: spacz
+    volumes:
+      - mysqldata:/var/lib/mysql
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   user-service:
     <<: *service-defaults
     build: ./spacz-user-service
@@ -51,6 +70,10 @@ services:
       DB_USERNAME: spacz_user
       DB_PASSWORD: ${USER_DB_PASSWORD}
       STUDYHALL_SERVICE_URL: http://studyhall-service:8083
+      DOCUMENTS_DIR: /data/user-documents
+    volumes:
+      # Private student documents (Aadhaar images); never served directly.
+      - userdocs:/data/user-documents
     ports:
       - "${USER_HOST_PORT:-8082}:8082"
     depends_on:
@@ -72,6 +95,9 @@ services:
       BOOKING_AUTO_CONFIRM: ${BOOKING_AUTO_CONFIRM:-false}
       BOOKING_HOLD_DURATION: ${BOOKING_HOLD_DURATION:-15m}
       BUSINESS_TIME_ZONE: ${BUSINESS_TIME_ZONE:-Asia/Kolkata}
+      HALL_IMAGES_DIR: /data/hall-images
+    volumes:
+      - hallimages:/data/hall-images
     ports:
       - "${STUDYHALL_HOST_PORT:-8083}:8083"
     depends_on:
@@ -157,3 +183,6 @@ networks:
 
 volumes:
   pgdata:
+  mysqldata:
+  userdocs:
+  hallimages:

@@ -128,8 +128,8 @@ class DoubleBookingPostgresTest {
         long hallId = jdbc.queryForObject("select study_hall_id from seats where id = ?", Long.class, seatId);
         String insert = """
                 insert into bookings (booking_reference, user_id, study_hall_id, seat_id, start_date, end_date, status,
-                                      unit_price, total_price)
-                values (?, ?, ?, ?, ?, ?, ?, 100, 100)""";
+                                      unit_price, base_amount, total_price)
+                values (?, ?, ?, ?, ?, ?, ?, 100, 100, 100)""";
         LocalDate day = LocalDate.of(2030, 1, 10);
 
         jdbc.update(insert, "SPZ-SQL-1", 1L, hallId, seatId, day, day.plusDays(5), "CONFIRMED");

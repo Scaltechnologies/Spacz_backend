@@ -15,6 +15,9 @@ spring:
       data-locations: classpath:test-data.sql
 
 spacz:
+  storage:
+    hall-images-dir: ${java.io.tmpdir}/spacz-test-hall-images
+    max-image-bytes: 1887436
   security:
     jwt:
       secret: test-only-jwt-secret-for-automated-tests-0123456789

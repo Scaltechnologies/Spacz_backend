@@ -1,6 +1,7 @@
 package com.spacz.studyhall.service;
 
 import com.spacz.studyhall.dto.PageResponse;
+import com.spacz.studyhall.dto.booking.BookingQuoteResponse;
 import com.spacz.studyhall.dto.booking.BookingResponse;
 import com.spacz.studyhall.dto.booking.CreateBookingRequest;
 import com.spacz.studyhall.dto.booking.VendorBookingResponse;
@@ -13,6 +14,9 @@ import java.time.LocalDate;
 public interface BookingService {
 
     BookingResponse create(Long userId, CreateBookingRequest request);
+
+    /** Validates a prospective booking and returns its server-computed price without holding the seat. */
+    BookingQuoteResponse quote(Long userId, CreateBookingRequest request);
 
     BookingResponse confirm(Long userId, Long bookingId);
 

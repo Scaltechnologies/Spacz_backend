@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.spacz.studyhall.service.support.PriceBreakdown;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -78,6 +79,26 @@ public class Booking {
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2, updatable = false)
     private BigDecimal totalPrice;
 
+    /** unitPrice × units, before any discount. */
+    @Column(name = "base_amount", nullable = false, precision = 12, scale = 2, updatable = false)
+    private BigDecimal baseAmount;
+
+    @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2, updatable = false)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Column(name = "platform_charges", nullable = false, precision = 12, scale = 2, updatable = false)
+    private BigDecimal platformCharges = BigDecimal.ZERO;
+
+    @Column(name = "tax_amount", nullable = false, precision = 12, scale = 2, updatable = false)
+    private BigDecimal taxAmount = BigDecimal.ZERO;
+
+    /** admin-service offer applied to this booking (no foreign key across services). */
+    @Column(name = "offer_id", updatable = false)
+    private Long offerId;
+
+    @Column(name = "offer_title", length = 120, updatable = false)
+    private String offerTitle;
+
     @Column(name = "hold_expires_at")
     private Instant holdExpiresAt;
 
@@ -117,6 +138,7 @@ public class Booking {
         booking.endDate = endDate;
         booking.unitPrice = unitPrice;
         booking.totalPrice = unitPrice.multiply(BigDecimal.valueOf(units(plan, startDate, endDate)));
+        booking.baseAmount = booking.totalPrice;
         booking.status = BookingStatus.PENDING;
         booking.holdExpiresAt = holdExpiresAt;
         return booking;
@@ -130,6 +152,17 @@ public class Booking {
         booking.status = BookingStatus.CONFIRMED;
         booking.confirmedAt = now;
         return booking;
+    }
+
+    /** Applies the server-computed price (offer discount, platform fee, tax) to a new booking. */
+    public void applyPricing(PriceBreakdown price) {
+        this.baseAmount = price.baseAmount();
+        this.discountAmount = price.discountAmount();
+        this.platformCharges = price.platformCharges();
+        this.taxAmount = price.taxes();
+        this.offerId = price.offerId();
+        this.offerTitle = price.offerTitle();
+        this.totalPrice = price.total();
     }
 
     public static long daysBetween(LocalDate startDate, LocalDate endDate) {

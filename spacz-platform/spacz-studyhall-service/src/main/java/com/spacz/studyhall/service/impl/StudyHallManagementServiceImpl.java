@@ -63,6 +63,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
     private final AmenityRepository amenityRepository;
     private final ProgramRepository programRepository;
     private final HallViewAssembler assembler;
+    private final HallImageService hallImageService;
     private final StudyHallProperties properties;
     private final AuditEvents auditEvents;
     private final Clock clock;
@@ -143,6 +144,15 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
         if (hall.getOperatingHours().stream().allMatch(OperatingHours::isClosed)) {
             throw new BusinessRuleException("NO_OPERATING_HOURS", "The study hall must be open at least one day a week");
         }
+        VendorProfile owner = hall.getVendor();
+        if (vendorStatus == VendorStatus.DRAFT) {
+            // The Partner app has no separate "submit vendor profile" step (like the legacy Partner API,
+            // see LegacyPartnerServiceImpl). Without this the vendor stays DRAFT, admins cannot approve
+            // it, and its halls never go live. Admin approval is still required.
+            owner.submitWithoutCompletenessCheck(clock.instant());
+            auditEvents.record(vendor, "VENDOR_SUBMITTED", "VENDOR", owner.getVendorId(),
+                    "Vendor " + owner.displayName() + " submitted for approval with study hall '" + hall.getName() + "'");
+        }
         hall.submitForApproval(properties.approvalRequired(), clock.instant());
         auditEvents.record(vendor, "STUDY_HALL_SUBMITTED", "STUDY_HALL", studyHallId,
                 "Submitted study hall '" + hall.getName() + "' for approval");
@@ -206,6 +216,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
         StudyHallImage image = hall.getImages().stream().filter(i -> i.getId().equals(imageId)).findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Image", imageId));
         hall.getImages().remove(image);
+        hallImageService.deleteFileAfterCommit(image.getUrl());
         if (image.isCover() && !hall.getImages().isEmpty()) {
             hall.getImages().get(0).setCover(true);
         }

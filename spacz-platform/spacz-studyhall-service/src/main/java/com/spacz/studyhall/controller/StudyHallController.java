@@ -8,6 +8,7 @@ import com.spacz.studyhall.dto.hall.HallVisibilityRequest;
 import com.spacz.studyhall.dto.hall.ImageRequest;
 import com.spacz.studyhall.dto.hall.OperatingHoursRequest;
 import com.spacz.studyhall.dto.hall.ProgramIdsRequest;
+import com.spacz.studyhall.dto.hall.LocationResponse;
 import com.spacz.studyhall.dto.hall.StudyHallDetailResponse;
 import com.spacz.studyhall.dto.hall.StudyHallSearchCriteria;
 import com.spacz.studyhall.dto.hall.StudyHallSummaryResponse;
@@ -16,6 +17,13 @@ import com.spacz.studyhall.dto.seat.AvailabilityResponse;
 import com.spacz.studyhall.security.AuthenticatedUser;
 import com.spacz.studyhall.service.StudyHallManagementService;
 import com.spacz.studyhall.service.StudyHallQueryService;
+import com.spacz.studyhall.service.impl.HallImageService;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,6 +49,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/studyhalls")
@@ -49,6 +58,7 @@ import java.time.LocalDate;
 @ApiErrorResponses
 public class StudyHallController {
 
+    private final HallImageService hallImageService;
     private final StudyHallQueryService queryService;
     private final StudyHallManagementService managementService;
 
@@ -59,6 +69,12 @@ public class StudyHallController {
     public PageResponse<StudyHallSummaryResponse> search(@ParameterObject StudyHallSearchCriteria criteria,
                                                          @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return queryService.search(criteria, pageable);
+    }
+
+    @GetMapping("/locations")
+    @Operation(summary = "Cities with live study halls", description = "For the student app's location filter; most halls first.")
+    public List<LocationResponse> locations() {
+        return queryService.locations();
     }
 
     @GetMapping("/{id}")
@@ -134,6 +150,32 @@ public class StudyHallController {
     public StudyHallDetailResponse addImage(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long id,
                                             @Valid @RequestBody ImageRequest request) {
         return managementService.addImage(vendor.userId(), id, request);
+    }
+
+    @PostMapping(value = "/{id}/images/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Upload a photo (JPEG/PNG, multipart part `file`)",
+            description = "Stored by the service and served from GET /api/studyhalls/media/{hallId}/{file}. "
+                    + "The first photo becomes the cover unless another is chosen.",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public StudyHallDetailResponse uploadImage(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long id,
+                                               @RequestPart("file") MultipartFile file,
+                                               @RequestParam(required = false) String caption,
+                                               @RequestParam(defaultValue = "false") boolean cover) {
+        return hallImageService.upload(vendor.userId(), id, file, caption, cover);
+    }
+
+    @GetMapping("/media/{hallId}/{file:.+}")
+    @Operation(summary = "An uploaded study hall photo (public)")
+    public ResponseEntity<InputStreamResource> media(@PathVariable Long hallId, @PathVariable String file) {
+        HallImageService.StoredImage image = hallImageService.open(hallId, file);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.contentType()))
+                .contentLength(image.sizeBytes())
+                // file names are random and never reused, so the content never changes
+                .cacheControl(CacheControl.maxAge(java.time.Duration.ofDays(30)).cachePublic().immutable())
+                .body(new InputStreamResource(image.content()));
     }
 
     @DeleteMapping("/{id}/images/{imageId}")

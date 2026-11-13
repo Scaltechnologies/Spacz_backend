@@ -29,8 +29,16 @@ spring:
         max-page-size: 100
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  servlet:
+    multipart:
+      # The gateway rejects requests over 2 MB; uploads are further limited by spacz.storage.max-file-bytes.
+      max-file-size: 2MB
+      max-request-size: 2MB
 
 spacz:
+  storage:
+    documents-dir: ${DOCUMENTS_DIR:./data/user-documents}
+    max-file-bytes: 1572864
   security:
     jwt:
       secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-0123456789}
