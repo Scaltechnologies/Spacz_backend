@@ -6,6 +6,8 @@ import com.spacz.studyhall.dto.legacy.LegacyRequests;
 import com.spacz.studyhall.dto.legacy.LegacyResponses;
 import com.spacz.studyhall.entity.Amenity;
 import com.spacz.studyhall.entity.Block;
+import com.spacz.studyhall.entity.BlockLayout;
+import com.spacz.studyhall.entity.LayoutType;
 import com.spacz.studyhall.entity.Seat;
 import com.spacz.studyhall.entity.SeatStatus;
 import com.spacz.studyhall.entity.SeatType;
@@ -18,6 +20,7 @@ import com.spacz.studyhall.exception.ResourceNotFoundException;
 import com.spacz.studyhall.exception.SpaczException;
 import com.spacz.studyhall.mapper.LegacyMapper;
 import com.spacz.studyhall.repository.AmenityRepository;
+import com.spacz.studyhall.repository.BlockLayoutRepository;
 import com.spacz.studyhall.repository.BlockRepository;
 import com.spacz.studyhall.repository.BookingRepository;
 import com.spacz.studyhall.repository.EnrollmentRepository;
@@ -25,6 +28,7 @@ import com.spacz.studyhall.repository.SeatRepository;
 import com.spacz.studyhall.repository.StudyHallRepository;
 import com.spacz.studyhall.repository.VendorProfileRepository;
 import com.spacz.studyhall.service.LegacyPartnerService;
+import com.spacz.studyhall.service.support.BlockLayouts;
 import com.spacz.studyhall.service.support.DefaultHours;
 import com.spacz.studyhall.service.support.SeatNumbering;
 import com.spacz.studyhall.service.support.VendorAccess;
@@ -59,6 +63,8 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
     private final VendorProfileRepository vendorRepository;
     private final StudyHallRepository studyHallRepository;
     private final BlockRepository blockRepository;
+    private final BlockLayoutRepository layoutRepository;
+    private final BlockLayouts blockLayouts;
     private final SeatRepository seatRepository;
     private final AmenityRepository amenityRepository;
     private final BookingRepository bookingRepository;
@@ -221,12 +227,14 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
         }
         StudyHall hall = ownHall(vendorId, request.propertyId());
         VendorAccess.ensureWritable(hall.getVendor());
-        Block block = Block.of(hall, request.blockName() == null || request.blockName().isBlank()
+        Block block = Block.of(hall.defaultFloor(), request.blockName() == null || request.blockName().isBlank()
                 ? "Block" : request.blockName().trim(), 1, 10, blockRepository.maxDisplayOrder(hall.getId()) + 1);
         block.setDailyPrice(LegacyMapper.toPrice(request.blockDailyPrice()));
         block.setMonthlyPrice(LegacyMapper.toPrice(request.blockMonthlyPrice()));
         hall.getBlocks().add(block);
-        return mapper.blockWithSeats(blockRepository.saveAndFlush(block));
+        blockRepository.saveAndFlush(block);
+        layoutRepository.saveAndFlush(BlockLayout.of(block, LayoutType.GRID));
+        return mapper.blockWithSeats(block);
     }
 
     @Override
@@ -251,13 +259,10 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
                 throw new ConflictException("CONFLICT", "A block with bookings cannot be moved to another property");
             }
             block.getStudyHall().getBlocks().remove(block);
-            block.setStudyHall(target);
+            block.moveTo(target.defaultFloor());
             target.getBlocks().add(block);
             Set<String> taken = seatRepository.findSeatNumbersLowercase(target.getId());
-            block.getSeats().forEach(seat -> {
-                seat.moveTo(block, seat.getRowIndex(), seat.getColumnIndex());
-                seat.setSeatNumber(SeatNumbering.unique(seat.getSeatNumber(), taken));
-            });
+            block.getSeats().forEach(seat -> seat.setSeatNumber(SeatNumbering.unique(seat.getSeatNumber(), taken)));
         }
         if (request.blockName() != null && !request.blockName().isBlank()) {
             block.setName(request.blockName().trim());
@@ -310,12 +315,13 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
         }
         Block block = ownBlock(vendorId, request.blockId());
         VendorAccess.ensureWritable(block.getStudyHall().getVendor());
-        int[] cell = freeCell(block);
+        BlockLayout layout = blockLayouts.of(block);
+        int[] cell = freeCell(layout);
         String number = seatNumber(request.seatNumber(), block, null);
         Seat seat = Seat.of(block, number, cell[0], cell[1], SeatType.STANDARD);
         seat.setStatus(Boolean.TRUE.equals(request.reserved()) ? SeatStatus.RESERVED : SeatStatus.AVAILABLE);
         seat.setPricePerDay(LegacyMapper.toPrice(request.seatPrice()));
-        block.getSeats().add(seat);
+        layout.addSeat(seat);
         return mapper.seat(seatRepository.saveAndFlush(seat));
     }
 
@@ -341,10 +347,14 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
             if (bookingRepository.existsBySeat_Id(seatId) || enrollmentRepository.existsBySeat_Id(seatId)) {
                 throw new ConflictException("CONFLICT", "A seat with bookings cannot be moved to another block");
             }
-            int[] cell = freeCell(target);
-            seat.getBlock().getSeats().remove(seat);
+            BlockLayout targetLayout = blockLayouts.of(target);
+            int[] cell = freeCell(targetLayout);
+            // Delete the old cell first: a seat has at most one cell. The seat stays in the old block's
+            // seats collection for the rest of this request (removing it would orphan-delete the seat).
+            blockLayouts.of(seat.getBlock()).removeSeatCell(seat);
+            layoutRepository.flush();
             seat.moveTo(target, cell[0], cell[1]);
-            target.getSeats().add(seat);
+            targetLayout.addSeat(seat);
         }
         if (request.seatNumber() != null && !request.seatNumber().isBlank()) {
             seat.setSeatNumber(seatNumber(request.seatNumber(), seat.getBlock(), seat.getId()));
@@ -536,9 +546,9 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
         return findImage(vendorId, imageId).orElseThrow(() -> new ResourceNotFoundException("Image", imageId));
     }
 
-    private static int[] freeCell(Block block) {
-        return block.nextFreeCell().orElseThrow(() ->
-                new BusinessRuleException("Block " + block.getName() + " is full (" + Block.MAX_GRID + " rows)"));
+    private static int[] freeCell(BlockLayout layout) {
+        return layout.nextFreeCell().orElseThrow(() ->
+                new BusinessRuleException("Block " + layout.getBlock().getName() + " is full (" + Block.MAX_GRID + " rows)"));
     }
 
     /** Seat numbers are unique per hall; the legacy app may omit them (a number is generated then). */

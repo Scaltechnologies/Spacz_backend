@@ -1,6 +1,7 @@
 package com.spacz.studyhall.entity;
 
 import com.spacz.studyhall.exception.BusinessRuleException;
+import com.spacz.studyhall.exception.DuplicateResourceException;
 import com.spacz.studyhall.support.Fixtures;
 import org.junit.jupiter.api.Test;
 
@@ -84,12 +85,34 @@ class StateMachineTest {
     @Test
     void legacySeatsFillTheGridRowByRowAndGrowIt() {
         StudyHall hall = Fixtures.activeHall(11L, Fixtures.approvedVendor(5L), "100.00", null);
-        Block block = Block.of(hall, "Legacy", 1, 2, 1);
+        Block block = Block.of(hall.defaultFloor(), "Legacy", 1, 2, 1);
+        BlockLayout layout = BlockLayout.of(block, LayoutType.GRID);
+        layout.addFeature(1, 2, LayoutCellType.PILLAR, null);
         for (int i = 0; i < 3; i++) {
-            int[] cell = block.nextFreeCell().orElseThrow();
-            block.getSeats().add(Seat.of(block, "S" + i, cell[0], cell[1], SeatType.STANDARD));
+            int[] cell = layout.nextFreeCell().orElseThrow();
+            layout.addSeat(Seat.of(block, "S" + i, cell[0], cell[1], SeatType.STANDARD));
         }
         assertThat(block.getTotalRows()).isEqualTo(2);
-        assertThat(block.getSeats()).extracting(Seat::getRowIndex).containsExactly(1, 1, 2);
+        assertThat(layout.getRows()).isEqualTo(2);
+        assertThat(block.getSeats()).extracting(Seat::getRowIndex).containsExactly(1, 2, 2);
+        assertThat(layout.getCells()).filteredOn(LayoutCell::isSeat).hasSize(3);
+        assertThat(block.getFloor().getName()).isEqualTo("Ground Floor");
+    }
+
+    @Test
+    void layoutRejectsOverlapsAndCellsOutsideTheGrid() {
+        StudyHall hall = Fixtures.activeHall(12L, Fixtures.approvedVendor(6L), "100.00", null);
+        Block block = Block.of(hall.defaultFloor(), "A", 2, 2, 1);
+        BlockLayout layout = BlockLayout.of(block, LayoutType.GRID);
+        layout.addSeat(Seat.of(block, "A1", 1, 1, SeatType.STANDARD));
+        assertThatThrownBy(() -> layout.addFeature(1, 1, LayoutCellType.WALKWAY, null))
+                .isInstanceOf(DuplicateResourceException.class);
+        assertThatThrownBy(() -> layout.addSeat(Seat.of(block, "A9", 3, 1, SeatType.STANDARD)))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> layout.addFeature(2, 2, LayoutCellType.SEAT, null))
+                .isInstanceOf(BusinessRuleException.class);
+        layout.addFeature(2, 2, LayoutCellType.ENTRANCE, "Entrance");
+        assertThatThrownBy(() -> layout.resize(1, 2)).isInstanceOf(BusinessRuleException.class);
+        assertThat(layout.getLayoutType()).isEqualTo(LayoutType.CUSTOM);
     }
 }

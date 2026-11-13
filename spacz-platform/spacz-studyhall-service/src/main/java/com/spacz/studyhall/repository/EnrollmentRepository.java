@@ -26,6 +26,9 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long>, J
 
     boolean existsBySeat_Id(Long seatId);
 
+    /** Any enrollment (any status) on any seat of the block, in one query. */
+    boolean existsBySeat_Block_Id(Long blockId);
+
     long countByStatus(EnrollmentStatus status);
 
     @Query("select e from Enrollment e where e.status = com.spacz.studyhall.entity.EnrollmentStatus.ACTIVE and e.endDate < :today")

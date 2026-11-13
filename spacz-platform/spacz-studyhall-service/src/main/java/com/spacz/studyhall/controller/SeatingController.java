@@ -1,12 +1,17 @@
 package com.spacz.studyhall.controller;
 
 import com.spacz.studyhall.config.OpenApiConfig;
+import com.spacz.studyhall.dto.seat.BlockLayoutResponse;
 import com.spacz.studyhall.dto.seat.BlockResponse;
 import com.spacz.studyhall.dto.seat.CreateBlockRequest;
 import com.spacz.studyhall.dto.seat.CreateSeatRequest;
+import com.spacz.studyhall.dto.seat.FloorRequest;
+import com.spacz.studyhall.dto.seat.FloorResponse;
+import com.spacz.studyhall.dto.seat.HallLayoutResponse;
 import com.spacz.studyhall.dto.seat.SeatMapResponse;
 import com.spacz.studyhall.dto.seat.SeatResponse;
 import com.spacz.studyhall.dto.seat.UpdateBlockRequest;
+import com.spacz.studyhall.dto.seat.UpdateLayoutRequest;
 import com.spacz.studyhall.dto.seat.UpdateSeatRequest;
 import com.spacz.studyhall.security.AuthenticatedUser;
 import com.spacz.studyhall.service.SeatingService;
@@ -38,7 +43,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/studyhalls/{studyHallId}")
 @RequiredArgsConstructor
-@Tag(name = "Seating", description = "Blocks (sections laid out as grids with gaps) and seats")
+@Tag(name = "Seating", description = "Floors, blocks with their physical layouts (seats, walkways, entrances ...) and seats")
 @ApiErrorResponses
 public class SeatingController {
 
@@ -54,6 +59,63 @@ public class SeatingController {
                                  @Parameter(example = "2026-10-31") @RequestParam(required = false)
                                  @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return queryService.seatMap(studyHallId, caller, startDate, endDate);
+    }
+
+    @GetMapping("/layout")
+    @Operation(summary = "Physical layout: floors → blocks → grid cells (seats, walkways, entrances ...) "
+            + "with per-seat availability for a date range (defaults to today)",
+            description = "Every position of each block grid is listed row by row; positions without a seat or "
+                    + "feature are EMPTY. Public for live halls; the owner sees it in any status.")
+    public HallLayoutResponse layout(@AuthenticationPrincipal AuthenticatedUser caller, @PathVariable Long studyHallId,
+                                     @Parameter(example = "2026-10-01") @RequestParam(required = false)
+                                     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                     @Parameter(example = "2026-10-31") @RequestParam(required = false)
+                                     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return queryService.layout(studyHallId, caller, startDate, endDate);
+    }
+
+    @GetMapping("/floors")
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Floors of the hall", security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public List<FloorResponse> floors(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long studyHallId) {
+        return seatingService.listFloors(vendor.userId(), studyHallId);
+    }
+
+    @PostMapping("/floors")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Add a floor", security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public FloorResponse createFloor(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long studyHallId,
+                                     @Valid @RequestBody FloorRequest request) {
+        return seatingService.createFloor(vendor.userId(), studyHallId, request);
+    }
+
+    @PutMapping("/floors/{floorId}")
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Update a floor", security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public FloorResponse updateFloor(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long studyHallId,
+                                     @PathVariable Long floorId, @Valid @RequestBody FloorRequest request) {
+        return seatingService.updateFloor(vendor.userId(), studyHallId, floorId, request);
+    }
+
+    @DeleteMapping("/floors/{floorId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Delete a floor without blocks", security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public void deleteFloor(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long studyHallId,
+                            @PathVariable Long floorId) {
+        seatingService.deleteFloor(vendor.userId(), studyHallId, floorId);
+    }
+
+    @PutMapping("/blocks/{blockId}/layout")
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Replace a block's walkways, entrances, tables ... (seat cells are kept)",
+            description = "Seats are added, moved and removed with the seat endpoints.",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public BlockLayoutResponse updateLayout(@AuthenticationPrincipal AuthenticatedUser vendor,
+                                            @PathVariable Long studyHallId, @PathVariable Long blockId,
+                                            @Valid @RequestBody UpdateLayoutRequest request) {
+        return seatingService.updateLayout(vendor.userId(), studyHallId, blockId, request);
     }
 
     @PostMapping("/seats")

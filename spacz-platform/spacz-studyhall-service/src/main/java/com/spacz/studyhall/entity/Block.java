@@ -24,13 +24,13 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 /**
- * A section of a study hall (floor, AC room, silent room ...) laid out as a rows × columns grid.
- * Cells without a seat are gaps. A block may override the hall's prices and add its own amenities.
- * Legacy: the {@code block} table (+ its 1:1 {@code amenity} row).
+ * A section of a floor (AC room, silent room ...). Its physical arrangement is its {@link BlockLayout}
+ * (same id, loaded separately). A block may override the hall's prices and add its own amenities.
+ * The hall reference is kept next to the floor for the hall-scoped queries; PostgreSQL enforces
+ * that both agree (V6). Legacy: the {@code block} table (+ its 1:1 {@code amenity} row).
  */
 @Entity
 @Table(name = "blocks")
@@ -49,12 +49,19 @@ public class Block {
     @JoinColumn(name = "study_hall_id", nullable = false)
     private StudyHall studyHall;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false, cascade = CascadeType.PERSIST)
+    @JoinColumn(name = "floor_id", nullable = false)
+    private Floor floor;
+
     @Column(nullable = false, length = 80)
     private String name;
 
+    /** Mirrors the layout size (kept for existing responses); change it with {@link BlockLayout#resize}. */
+    @Setter(AccessLevel.NONE)
     @Column(name = "total_rows", nullable = false)
     private int totalRows;
 
+    @Setter(AccessLevel.NONE)
     @Column(name = "total_columns", nullable = false)
     private int totalColumns;
 
@@ -82,9 +89,10 @@ public class Block {
     @OneToMany(mappedBy = "block", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Seat> seats = new ArrayList<>();
 
-    public static Block of(StudyHall hall, String name, int totalRows, int totalColumns, int displayOrder) {
+    public static Block of(Floor floor, String name, int totalRows, int totalColumns, int displayOrder) {
         Block block = new Block();
-        block.studyHall = hall;
+        block.studyHall = floor.getStudyHall();
+        block.floor = floor;
         block.name = name;
         block.totalRows = totalRows;
         block.totalColumns = totalColumns;
@@ -92,30 +100,16 @@ public class Block {
         return block;
     }
 
-    public boolean contains(int row, int column) {
-        return row >= 1 && row <= totalRows && column >= 1 && column <= totalColumns;
+    /** Moves the block (with its seats) to a floor of the same or another hall of the vendor. */
+    public void moveTo(Floor target) {
+        this.floor = target;
+        this.studyHall = target.getStudyHall();
+        seats.forEach(seat -> seat.moveTo(this, seat.getRowIndex(), seat.getColumnIndex()));
     }
 
-    public boolean isOccupied(int row, int column) {
-        return seats.stream().anyMatch(s -> s.getRowIndex() == row && s.getColumnIndex() == column);
-    }
-
-    /**
-     * The first free cell in row-major order, growing the grid by one row when it is full. Used by
-     * the legacy API and the data migration, whose seats have no position.
-     */
-    public Optional<int[]> nextFreeCell() {
-        for (int row = 1; row <= MAX_GRID; row++) {
-            if (row > totalRows) {
-                totalRows = row;
-            }
-            for (int column = 1; column <= totalColumns; column++) {
-                if (!isOccupied(row, column)) {
-                    return Optional.of(new int[]{row, column});
-                }
-            }
-        }
-        return Optional.empty();
+    void syncSize(int rows, int columns) {
+        this.totalRows = rows;
+        this.totalColumns = columns;
     }
 
     public BigDecimal effectiveDailyPrice() {
