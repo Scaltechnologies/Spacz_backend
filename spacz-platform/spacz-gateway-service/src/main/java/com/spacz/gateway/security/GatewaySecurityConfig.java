@@ -63,6 +63,7 @@ public class GatewaySecurityConfig {
                         // Role-restricted GETs that the public GET patterns below would otherwise match.
                         .pathMatchers(HttpMethod.GET, "/api/vendors/me", "/api/vendors/me/**",
                                 "/api/studyhalls/*/blocks", "/api/studyhalls/*/blocks/**",
+                                "/api/studyhalls/*/floors", "/api/studyhalls/*/floors/**",
                                 "/api/studyhalls/*/enrollments", "/api/studyhalls/*/enrollments/**",
                                 "/api/studyhalls/*/bookings", "/api/studyhalls/*/bookings/**").hasRole("VENDOR")
                         .pathMatchers(HttpMethod.GET, "/api/programs/all", "/api/amenities/all").hasRole("ADMIN")
@@ -78,7 +79,7 @@ public class GatewaySecurityConfig {
                         .pathMatchers("/api/studyhalls", "/api/studyhalls/**").hasRole("VENDOR")
                         // Booking actions are students only; GET /api/bookings/{id} stays open to the
                         // student, the hall's vendor and ADMIN (checked by studyhall-service).
-                        .pathMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/*/confirm",
+                        .pathMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/quote", "/api/bookings/*/confirm",
                                 "/api/bookings/*/cancel").hasRole("USER")
                         .pathMatchers(HttpMethod.GET, "/api/bookings/me").hasRole("USER")
                         .pathMatchers("/api/**").authenticated()

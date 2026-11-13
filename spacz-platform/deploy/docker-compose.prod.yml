@@ -54,6 +54,10 @@ services:
       DB_USERNAME: spacz_user
       DB_PASSWORD: ${USER_DB_PASSWORD}
       STUDYHALL_SERVICE_URL: http://studyhall-service:8083
+      DOCUMENTS_DIR: /data/user-documents
+    volumes:
+      # Private student documents (Aadhaar images); must survive redeploys and rollbacks.
+      - userdocs:/data/user-documents
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,6 +76,10 @@ services:
       BOOKING_AUTO_CONFIRM: ${BOOKING_AUTO_CONFIRM:-false}
       BOOKING_HOLD_DURATION: ${BOOKING_HOLD_DURATION:-15m}
       BUSINESS_TIME_ZONE: ${BUSINESS_TIME_ZONE:-Asia/Kolkata}
+      HALL_IMAGES_DIR: /data/hall-images
+    volumes:
+      # Vendor-uploaded hall photos; must survive redeploys and rollbacks.
+      - hallimages:/data/hall-images
     depends_on:
       postgres:
         condition: service_healthy
@@ -151,3 +159,5 @@ networks:
 
 volumes:
   pgdata:
+  userdocs:
+  hallimages:

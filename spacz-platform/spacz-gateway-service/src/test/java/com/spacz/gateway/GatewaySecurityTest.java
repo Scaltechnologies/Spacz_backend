@@ -128,7 +128,7 @@ class GatewaySecurityTest {
     @Test
     void roleRestrictedGetsUnderPublicPathsAreCheckedAtTheEdge() {
         String[] vendorOnly = {"/api/vendors/me", "/api/vendors/me/bookings", "/api/studyhalls/3/blocks",
-                "/api/studyhalls/3/enrollments", "/api/studyhalls/3/bookings"};
+                "/api/studyhalls/3/floors", "/api/studyhalls/3/enrollments", "/api/studyhalls/3/bookings"};
         for (String uri : vendorOnly) {
             client.get().uri(uri).exchange().expectStatus().isUnauthorized();
             client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "USER")).exchange()
@@ -149,7 +149,24 @@ class GatewaySecurityTest {
         client.get().uri("/api/vendors/12").exchange().expectStatus().is5xxServerError();
         client.get().uri("/api/studyhalls/3/seats").exchange().expectStatus().is5xxServerError();
         client.get().uri("/api/studyhalls/3/availability").exchange().expectStatus().is5xxServerError();
+        client.get().uri("/api/studyhalls/3/layout").exchange().expectStatus().is5xxServerError();
         client.get().uri("/api/programs/4").exchange().expectStatus().is5xxServerError();
+    }
+
+    @Test
+    void offersArePublicNotificationsNeedLoginAndQuotesNeedUser() {
+        client.get().uri("/api/offers").exchange().expectStatus().is5xxServerError();
+        client.get().uri("/api/notifications").exchange().expectStatus().isUnauthorized();
+        client.get().uri("/api/notifications").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "USER"))
+                .exchange().expectStatus().is5xxServerError();
+        for (String role : new String[]{"VENDOR", "ADMIN"}) {
+            client.post().uri("/api/bookings/quote").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, role))
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}").exchange()
+                    .expectStatus().isForbidden();
+        }
+        client.post().uri("/api/bookings/quote").header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(5, "USER"))
+                .header(HttpHeaders.CONTENT_TYPE, "application/json").bodyValue("{}").exchange()
+                .expectStatus().is5xxServerError();
     }
 
     @Test
