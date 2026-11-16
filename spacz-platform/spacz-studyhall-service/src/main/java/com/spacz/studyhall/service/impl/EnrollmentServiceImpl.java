@@ -23,6 +23,7 @@ import com.spacz.studyhall.exception.DuplicateResourceException;
 import com.spacz.studyhall.exception.ResourceNotFoundException;
 import com.spacz.studyhall.exception.SpaczException;
 import com.spacz.studyhall.mapper.EnrollmentMapper;
+import com.spacz.studyhall.notify.StudyHallNotifier;
 import com.spacz.studyhall.repository.BookingRepository;
 import com.spacz.studyhall.repository.EnrollmentRepository;
 import com.spacz.studyhall.repository.EnrollmentSpecifications;
@@ -66,6 +67,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final EnrollmentMapper mapper;
     private final BookingProperties bookingProperties;
     private final Clock clock;
+    private final StudyHallNotifier notifier;
 
     @Override
     @Transactional(readOnly = true)
@@ -118,6 +120,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             enrollment.setSeat(holdSeat(studyHallId, request.seatId(), request.startDate()));
         }
         Enrollment saved = enrollmentRepository.saveAndFlush(enrollment);
+        notifier.studentEnrolled(saved);
         return mapper.toResponse(saved, student(saved, accounts));
     }
 

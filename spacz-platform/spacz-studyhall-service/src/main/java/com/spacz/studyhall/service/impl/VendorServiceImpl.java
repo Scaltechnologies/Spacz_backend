@@ -1,6 +1,7 @@
 package com.spacz.studyhall.service.impl;
 
 import com.spacz.studyhall.audit.AuditEvents;
+import com.spacz.studyhall.notify.StudyHallNotifier;
 import com.spacz.studyhall.dto.PageResponse;
 import com.spacz.studyhall.dto.vendor.AdminVendorResponse;
 import com.spacz.studyhall.dto.vendor.CreateVendorProfileRequest;
@@ -43,6 +44,7 @@ public class VendorServiceImpl implements VendorService {
     private final VendorAccess vendorAccess;
     private final StudyHallMapper mapper;
     private final AuditEvents auditEvents;
+    private final StudyHallNotifier notifier;
     private final Clock clock;
 
     @Override
@@ -80,6 +82,7 @@ public class VendorServiceImpl implements VendorService {
         profile.submit(clock.instant());
         auditEvents.record(vendor, "VENDOR_SUBMITTED", "VENDOR", profile.getVendorId(),
                 "Vendor " + profile.displayName() + " submitted for approval");
+        notifier.vendorSubmitted(profile);
         return mapper.toResponse(vendorRepository.saveAndFlush(profile));
     }
 
@@ -143,6 +146,7 @@ public class VendorServiceImpl implements VendorService {
         }
         vendorRepository.saveAndFlush(vendor);
         log.info("Vendor {} -> {} ({})", vendorId, vendor.getStatus(), action);
+        notifier.vendorStatusChanged(vendor, action, trimToNull(reason));
         return toAdminResponse(vendor);
     }
 

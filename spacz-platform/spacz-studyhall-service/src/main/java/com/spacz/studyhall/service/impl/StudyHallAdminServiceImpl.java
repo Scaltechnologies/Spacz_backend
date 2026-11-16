@@ -8,6 +8,7 @@ import com.spacz.studyhall.entity.StudyHall;
 import com.spacz.studyhall.entity.StudyHallStatus;
 import com.spacz.studyhall.exception.ResourceNotFoundException;
 import com.spacz.studyhall.repository.StudyHallRepository;
+import com.spacz.studyhall.notify.StudyHallNotifier;
 import com.spacz.studyhall.repository.StudyHallSpecifications;
 import com.spacz.studyhall.service.StudyHallAdminService;
 import com.spacz.studyhall.service.support.PageableSupport;
@@ -32,6 +33,7 @@ public class StudyHallAdminServiceImpl implements StudyHallAdminService {
 
     private final StudyHallRepository studyHallRepository;
     private final HallViewAssembler assembler;
+    private final StudyHallNotifier notifier;
     private final Clock clock;
 
     @Override
@@ -59,6 +61,7 @@ public class StudyHallAdminServiceImpl implements StudyHallAdminService {
         hall.apply(action, reason == null || reason.isBlank() ? null : reason.trim(), clock.instant());
         studyHallRepository.saveAndFlush(hall);
         log.info("Study hall {} -> {} ({})", studyHallId, hall.getStatus(), action);
+        notifier.hallStatusChanged(hall, action, hall.getStatusReason());
         return assembler.detail(hall);
     }
 

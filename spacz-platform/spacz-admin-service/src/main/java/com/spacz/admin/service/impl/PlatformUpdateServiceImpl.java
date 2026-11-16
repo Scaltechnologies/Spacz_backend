@@ -10,6 +10,7 @@ import com.spacz.admin.repository.PlatformUpdateRepository;
 import com.spacz.admin.security.AuthenticatedUser;
 import com.spacz.admin.service.AuditService;
 import com.spacz.admin.service.PlatformUpdateService;
+import com.spacz.admin.notify.AdminNotifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +29,7 @@ public class PlatformUpdateServiceImpl implements PlatformUpdateService {
 
     private final PlatformUpdateRepository updateRepository;
     private final AuditService auditService;
+    private final AdminNotifier notifier;
     private final Clock clock;
 
     @Override
@@ -52,6 +54,7 @@ public class PlatformUpdateServiceImpl implements PlatformUpdateService {
         update = updateRepository.saveAndFlush(update);
         auditService.record(admin, AuditAction.PLATFORM_UPDATE_CREATED, ENTITY, update.getId(),
                 "Created update " + update.getTitle());
+        notifyIfNewlyPublished(false, update);
         return PlatformUpdateResponse.from(update);
     }
 
@@ -59,16 +62,26 @@ public class PlatformUpdateServiceImpl implements PlatformUpdateService {
     @Transactional
     public PlatformUpdateResponse update(AuthenticatedUser admin, Long id, PlatformUpdateRequest request) {
         PlatformUpdate update = find(id);
+        boolean wasPublished = update.isPublished();
         apply(update, request);
         update = updateRepository.saveAndFlush(update);
         auditService.record(admin, AuditAction.PLATFORM_UPDATE_UPDATED, ENTITY, id, "Updated update " + update.getTitle());
+        notifyIfNewlyPublished(wasPublished, update);
         return PlatformUpdateResponse.from(update);
+    }
+
+    /** Students are notified once per publication (republishing after unpublishing notifies again). */
+    private void notifyIfNewlyPublished(boolean wasPublished, PlatformUpdate update) {
+        if (!wasPublished && update.isPublished()) {
+            notifier.platformUpdatePublished(update);
+        }
     }
 
     @Override
     @Transactional
     public PlatformUpdateResponse setPublished(AuthenticatedUser admin, Long id, boolean published) {
         PlatformUpdate update = find(id);
+        boolean wasPublished = update.isPublished();
         if (published) {
             update.publish(clock.instant());
         } else {
@@ -77,6 +90,7 @@ public class PlatformUpdateServiceImpl implements PlatformUpdateService {
         update = updateRepository.saveAndFlush(update);
         auditService.record(admin, published ? AuditAction.PLATFORM_UPDATE_PUBLISHED : AuditAction.PLATFORM_UPDATE_UNPUBLISHED,
                 ENTITY, id, (published ? "Published" : "Unpublished") + " update " + update.getTitle());
+        notifyIfNewlyPublished(wasPublished, update);
         return PlatformUpdateResponse.from(update);
     }
 

@@ -8,6 +8,7 @@ import com.spacz.studyhall.exception.BusinessRuleException;
 import com.spacz.studyhall.exception.ResourceNotFoundException;
 import com.spacz.studyhall.exception.SpaczException;
 import com.spacz.studyhall.repository.StudyHallRepository;
+import com.spacz.studyhall.notify.StudyHallNotifier;
 import com.spacz.studyhall.service.support.VendorAccess;
 import com.spacz.studyhall.storage.HallImageStorage;
 import com.spacz.studyhall.storage.HallImageStorageProperties;
@@ -47,6 +48,7 @@ public class HallImageService {
     private final StudyHallProperties properties;
     private final HallImageStorageProperties storageProperties;
     private final HallImageStorage storage;
+    private final StudyHallNotifier notifier;
 
     public record StoredImage(String contentType, long sizeBytes, InputStream content) {
     }
@@ -98,6 +100,7 @@ public class HallImageService {
         }
         hall.getImages().add(StudyHallImage.of(hall, MediaUrls.forKey(key), trimToNull(caption), hall.getImages().size(), makeCover));
         log.info("Image stored for study hall {} ({} bytes, {})", hall.getId(), bytes.length, extension);
+        notifier.hallImageUploaded(hall);
         return assembler.detail(studyHallRepository.saveAndFlush(hall));
     }
 

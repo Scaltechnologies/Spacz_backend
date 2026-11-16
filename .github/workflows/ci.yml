@@ -1,4 +1,4 @@
-# Runs the test suite of all five services on every pull request.
+# Runs the test suite of all six services on every pull request.
 name: CI
 
 on:

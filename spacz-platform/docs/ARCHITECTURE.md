@@ -1,6 +1,6 @@
 # SPACZ Platform — Architecture
 
-The final architecture of the SPACZ backend: five Spring Boot services, one database per service.
+The final architecture of the SPACZ backend: six Spring Boot services, one database per service.
 It consolidates the earlier `spacz-platform`, the Partner app's `spacz-partner-service`, and the
 relevant parts of the `spacz/` monolith. How that consolidation was done, and why, is in
 [MIGRATION_PLAN.md](MIGRATION_PLAN.md).
@@ -56,6 +56,7 @@ relevant parts of the `spacz/` monolith. How that consolidation was done, and wh
 | Legacy Partner-app API (owner/property/block/seat/amenity/image) | | | **owner** | | |
 | Admin profile, dashboard aggregation, approval workflows | | | | **owner** | |
 | Audit log (admin actions + domain events from other services) | | | | **owner** | |
+| Notifications (in-app inbox, FCM push devices, preferences) — **notification-service** :8085, `spacz_notification`; see [NOTIFICATIONS.md](NOTIFICATIONS.md) | sends | sends | sends | sends | routes |
 | Routing, CORS, correlation ID, Swagger aggregation | | | | | **owner** |
 
 ## 3. Database ownership & entities
@@ -97,6 +98,14 @@ Every migrated row keeps its MySQL ID in a `legacy_*` column (traceability and i
 |---|---|---|
 | `admin_profiles` | `AdminProfile` | `admin_user_id` (auth ID), name, title, contact |
 | `audit_logs` | `AuditLog` | actor, action, entity, description, IP, correlation ID, source service. **Append-only** (DB trigger) |
+
+### `spacz_notification`
+| Table | Entity | Notes |
+|---|---|---|
+| `notifications` | `Notification` | personal (`recipient_user_id`) or broadcast to an audience (USER/VENDOR/ADMIN/ALL), category, type, deep-link data, push status, `dedup_key` |
+| `notification_receipts` | `NotificationReceipt` | per-account read/dismiss state of broadcasts |
+| `device_tokens` | `DeviceToken` | FCM tokens per account and app (USER_APP / PARTNER_APP / ADMIN_APP) |
+| `notification_preferences` | `NotificationPreference` | push off per category |
 
 ## 4. Entity relationships (inside each service)
 
@@ -198,6 +207,7 @@ REST (`RestClient`) with a 2 s connect timeout and a 5 s read timeout, plus the 
 | studyhall → user | `POST /internal/users/{id}/activities` (booking events) | async, after commit, best effort |
 | studyhall → admin | `POST /internal/audit-events` (hall/vendor/program/amenity events) | async, after commit, best effort |
 | admin → auth / user / studyhall | accounts, profiles, programs, activity, vendors, halls, bookings, enrollments, stats | sync; the dashboard calls in parallel and degrades per service |
+| auth / user / studyhall / admin → notification | `POST /internal/notifications` (registrations, approvals, bookings, uploads, announcements …) | async, after commit, best effort, 3 attempts with the same `dedupKey` |
 
 user ↔ studyhall calls go in both directions, as do auth/studyhall → admin → auth/studyhall. That
 is acceptable here because no call runs at startup, none spans a transaction across services, and

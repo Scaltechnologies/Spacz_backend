@@ -10,6 +10,7 @@ import com.spacz.admin.repository.OfferRepository;
 import com.spacz.admin.security.AuthenticatedUser;
 import com.spacz.admin.service.AuditService;
 import com.spacz.admin.service.OfferService;
+import com.spacz.admin.notify.AdminNotifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -29,6 +30,7 @@ public class OfferServiceImpl implements OfferService {
 
     private final OfferRepository offerRepository;
     private final AuditService auditService;
+    private final AdminNotifier notifier;
     private final Clock clock;
 
     @Override
@@ -52,6 +54,9 @@ public class OfferServiceImpl implements OfferService {
         apply(offer, request);
         offer = offerRepository.saveAndFlush(offer);
         auditService.record(admin, AuditAction.OFFER_CREATED, ENTITY, offer.getId(), "Created offer " + offer.getTitle());
+        if (offer.isLive(clock.instant())) {
+            notifier.offerLive(offer);
+        }
         return OfferResponse.from(offer, clock.instant());
     }
 
@@ -69,10 +74,14 @@ public class OfferServiceImpl implements OfferService {
     @Transactional
     public OfferResponse setActive(AuthenticatedUser admin, Long id, boolean active) {
         Offer offer = find(id);
+        boolean wasLive = offer.isLive(clock.instant());
         offer.setActive(active);
         offer = offerRepository.saveAndFlush(offer);
         auditService.record(admin, active ? AuditAction.OFFER_ACTIVATED : AuditAction.OFFER_DEACTIVATED, ENTITY, id,
                 (active ? "Enabled" : "Disabled") + " offer " + offer.getTitle());
+        if (!wasLive && offer.isLive(clock.instant())) {
+            notifier.offerLive(offer);
+        }
         return OfferResponse.from(offer, clock.instant());
     }
 

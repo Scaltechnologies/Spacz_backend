@@ -32,7 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "AUTH_SERVICE_URL=http://127.0.0.1:1",
         "USER_SERVICE_URL=http://127.0.0.1:1",
         "STUDYHALL_SERVICE_URL=http://127.0.0.1:1",
-        "ADMIN_SERVICE_URL=http://127.0.0.1:1"
+        "ADMIN_SERVICE_URL=http://127.0.0.1:1",
+        "NOTIFICATION_SERVICE_URL=http://127.0.0.1:1"
 })
 @AutoConfigureWebTestClient(timeout = "10s")
 class IntegratedEndpointsRbacTest {
@@ -65,6 +66,19 @@ class IntegratedEndpointsRbacTest {
             // admin-service: student content
             new Case(HttpMethod.GET, "/api/offers", PUBLIC),
             new Case(HttpMethod.GET, "/api/notifications", SIGNED_IN),
+            // notification-service: every app's inbox, devices and preferences; admin sending
+            new Case(HttpMethod.GET, "/api/notifications/categories", PUBLIC),
+            new Case(HttpMethod.GET, "/api/notifications/inbox", SIGNED_IN),
+            new Case(HttpMethod.GET, "/api/notifications/inbox/unread-count", SIGNED_IN),
+            new Case(HttpMethod.POST, "/api/notifications/inbox/1/read", SIGNED_IN),
+            new Case(HttpMethod.POST, "/api/notifications/inbox/read-all", SIGNED_IN),
+            new Case(HttpMethod.DELETE, "/api/notifications/inbox/1", SIGNED_IN),
+            new Case(HttpMethod.POST, "/api/notifications/devices", SIGNED_IN),
+            new Case(HttpMethod.POST, "/api/notifications/devices/unregister", SIGNED_IN),
+            new Case(HttpMethod.PUT, "/api/notifications/preferences", SIGNED_IN),
+            new Case(HttpMethod.POST, "/api/notifications/admin/send", ADMIN),
+            new Case(HttpMethod.GET, "/api/notifications/admin/sent", ADMIN),
+            new Case(HttpMethod.GET, "/api/notifications/admin/push-status", ADMIN),
             // admin-service: offer and platform-update management
             new Case(HttpMethod.GET, "/api/admin/offers", ADMIN),
             new Case(HttpMethod.POST, "/api/admin/offers", ADMIN),

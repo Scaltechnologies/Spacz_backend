@@ -12,14 +12,14 @@ ports 80/443. SPACZ is added next to them without touching them:
 
 ```
  git push main ──► GitHub Actions
-                   1. test      ./mvnw verify (all 5 services)
-                   2. images    build 5 Docker images ──► ghcr.io/scaltechnologies/spacz-*:<commit-sha>
+                   1. test      ./mvnw verify (all 6 services)
+                   2. images    build 6 Docker images ──► ghcr.io/scaltechnologies/spacz-*:<commit-sha>
                    3. deploy    SSH into the VPS as "deploy" ──► deploy.sh: docker compose pull + up --wait
                                    └─ a container not healthy? ──► previous build restarted automatically
                    4. smoke     calls https://api.spacz.in (health, programs, halls, login, auth check)
                                    └─ a check fails? ──► previous build restarted automatically
 
- Internet ──443──► nginx (existing, HTTPS via certbot) ──► 127.0.0.1:18080 gateway ──► auth/user/studyhall/admin
+ Internet ──443──► nginx (existing, HTTPS via certbot) ──► 127.0.0.1:18080 gateway ──► auth/user/studyhall/admin/notification
                                                                                         └─► postgres (private)
 ```
 
@@ -86,7 +86,7 @@ Generate each secret with `openssl rand -base64 48 | tr -d '/+=' | cut -c1-48`.
 Set `CORS_ALLOWED_ORIGINS` to the real frontend URLs. Check that port 18080 is free first
 (`ss -tlnp | grep 18080` prints nothing); otherwise choose another `GATEWAY_HOST_PORT`.
 
-> The DB passwords are applied only on the **first** Postgres start. Changing them later in `.env`
+> Each DB password is applied once, when `deploy.sh` first creates that database. Changing it later in `.env`
 > will not change them in the database.
 
 ### 5. Add the GitHub secrets
@@ -162,6 +162,17 @@ state, stops the application containers, replaces the chosen databases / volumes
 containers again. A rollback (`deploy.sh --rollback`) only swaps images; it does not undo database
 migrations, so after a release with migrations restore the matching `…-pre-deploy` set together with the
 rollback if the older build cannot work with the newer schema.
+
+**Notifications** (`notification-service`, see [NOTIFICATIONS.md](NOTIFICATIONS.md)):
+
+* It needs `NOTIFICATION_DB_PASSWORD` in `/opt/spacz/.env` (generate it like the other secrets).
+  `deploy.sh` stops with a clear message, before changing anything, if it is missing. On the first
+  deploy that includes the service, `deploy.sh` creates its database `spacz_notification` itself
+  (it re-runs `docker/postgres/init-databases.sh`, which leaves existing databases untouched).
+* Push needs `FCM_CREDENTIALS_BASE64` (the **SPACZ** Firebase service account); without it, notifications
+  are in-app only. Check with `GET /api/notifications/admin/push-status` or
+  `docker logs spacz-notification-service-1 | grep -i push`.
+* Rolling back to a build from before the service existed starts the stack without it.
 
 ## Troubleshooting
 

@@ -2,7 +2,7 @@
 
 The SPACZ backend. Students find study halls, choose their exam, book seats (daily or monthly) and
 belong to halls. Vendors and institutes list and run their halls. Admins approve and oversee
-everything. It is **exactly five Spring Boot services**, each with its own PostgreSQL database.
+everything. It is **six Spring Boot services**, each with its own PostgreSQL database.
 
 | Service | Port | Database | Owns |
 |---|---|---|---|
@@ -11,6 +11,7 @@ everything. It is **exactly five Spring Boot services**, each with its own Postg
 | [`spacz-user-service`](spacz-user-service/README.md) | 8082 | `spacz_user` | student profiles, exam/course choices, activity |
 | [`spacz-studyhall-service`](spacz-studyhall-service/README.md) | 8083 | `spacz_studyhall` | vendors & approval, halls, blocks, seats, amenities, **program catalog**, bookings, **enrollments**, legacy Partner API |
 | [`spacz-admin-service`](spacz-admin-service/README.md) | 8084 | `spacz_admin` | admin profiles, dashboard, approval workflows, audit log |
+| `spacz-notification-service` | 8085 | `spacz_notification` | in-app notifications for every app, push (FCM) devices and preferences, admin announcements ([docs](docs/NOTIFICATIONS.md)) |
 
 This replaces `../spacz-partner-service` and the partner/auth/aspirant parts of the `../spacz`
 monolith. Their functionality lives in studyhall-service (including the unchanged Partner-app API)
@@ -19,7 +20,7 @@ until you sign off; see [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md).
 
 **Docs:** [Architecture](docs/ARCHITECTURE.md) (responsibilities, database ownership, ER diagram, API
 list, inter-service calls, flows, state machines) · [Frontend integration](docs/FRONTEND_INTEGRATION.md) ·
-[Migration plan & outcome](docs/MIGRATION_PLAN.md) · [Postman collection](postman/SPACZ.postman_collection.json) ·
+[Notifications](docs/NOTIFICATIONS.md) · [Migration plan & outcome](docs/MIGRATION_PLAN.md) · [Postman collection](postman/SPACZ.postman_collection.json) ·
 Swagger: http://localhost:8080/swagger-ui.html
 
 ## Quick start (Docker)
@@ -27,8 +28,8 @@ Swagger: http://localhost:8080/swagger-ui.html
 ```bash
 cd spacz-platform
 cp .env.example .env             # replace every secret (openssl rand -base64 48)
-docker compose up -d --build     # postgres + 5 services; first build takes a few minutes
-docker compose ps                # wait until all six are "healthy"
+docker compose up -d --build     # postgres + 6 services; first build takes a few minutes
+docker compose ps                # wait until all seven are "healthy"
 node scripts/smoke-test.mjs      # optional: 37-step end-to-end check through the gateway (Node 18+)
 ```
 
@@ -51,11 +52,12 @@ All of them are in [.env.example](.env.example):
 |---|---|---|
 | `JWT_SECRET`, `JWT_ISSUER` | all + gateway | HS256 signing key (≥ 32 chars) and issuer |
 | `INTERNAL_API_KEY` | all | service-to-service key for `/internal/**` |
-| `POSTGRES_PASSWORD`, `AUTH_DB_PASSWORD`, `USER_DB_PASSWORD`, `STUDYHALL_DB_PASSWORD`, `ADMIN_DB_PASSWORD` | postgres + services | one login role per service database |
+| `POSTGRES_PASSWORD`, `AUTH_DB_PASSWORD`, `USER_DB_PASSWORD`, `STUDYHALL_DB_PASSWORD`, `ADMIN_DB_PASSWORD`, `NOTIFICATION_DB_PASSWORD` | postgres + services | one login role per service database |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | auth | first admin (password ≥ 12 chars) |
 | `OTP_SMS_PROVIDER`, `OTP_EXPOSE_CODE`, `OTP_DEFAULT_COUNTRY_CODE` | auth | phone OTP (`log` provider, dev exposure, `+91`) |
 | `CORS_ALLOWED_ORIGINS` | gateway | frontend origins |
 | `STUDYHALL_APPROVAL_REQUIRED`, `BOOKING_AUTO_CONFIRM`, `BOOKING_HOLD_DURATION`, `BUSINESS_TIME_ZONE` | studyhall | business rules |
+| `FCM_CREDENTIALS_BASE64` | notification | SPACZ Firebase service-account JSON (base64); empty = push disabled, in-app only |
 | `*_HOST_PORT` | compose | published ports |
 
 ## Running one service outside Docker
@@ -71,7 +73,7 @@ secrets match the containers. Each service README lists its own variables.
 ## Build & test
 
 ```bash
-./mvnw clean verify                               # all five services
+./mvnw clean verify                               # all six services
 cd spacz-auth-service && ../mvnw clean test       # one service (each builds on its own)
 ```
 
@@ -128,7 +130,7 @@ spacz-platform/
 * **Payments** are not integrated: `POST /api/bookings/{id}/confirm` is the payment-success hook
   (`BOOKING_AUTO_CONFIRM=true` skips the hold).
 * **Images** are URLs; upload files to object storage from the frontend.
-* Audit and activity events are delivered asynchronously and best effort. Use an outbox + broker if
+* Audit events, activity events and notifications are delivered asynchronously and best effort (notifications retry briefly). Use an outbox + broker if
   they must never be lost.
 * An access token stays valid for up to 15 minutes after a suspension.
 * No gateway rate limiting yet (Spring Cloud Gateway `RequestRateLimiter` + Redis). Scheduled jobs
