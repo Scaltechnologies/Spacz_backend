@@ -16,7 +16,7 @@ In the tables below:
 ## Know before you start
 
 - **Local development:** browser calls are accepted from `http://localhost:3000` and `http://localhost:5173` only. Any other address, including `localhost:4200`, is blocked until the backend team adds it. Send them the live console address as well.
-- **Phone OTP:** SMS isn't connected yet, so codes don't reach phones or appear in API responses. Use email and password sign-up for testing.
+- **Phone OTP:** the apps use Firebase Phone Auth. Send the SMS and check the code with the Firebase SDK, then send `await user.getIdToken()` to `POST /api/auth/otp/firebase`. Do not send the Firebase code to `/api/auth/otp/verify`: that route only accepts codes from `/api/auth/otp/request`, so it answers `401` ("invalid or expired").
 - **Hall photos:** there is no file upload route. Upload the file elsewhere first, then send its URL.
 - **Production data:** there is no separate test environment, so test accounts and data are real records.
 - **Test coverage:** the routes that need a login were checked without a token and correctly refused it (`401`). Complete logged-in flows haven't been run against production yet, so report any surprises with the `correlationId`.
@@ -51,6 +51,7 @@ Shared with the other SPACZ apps. Route the user by `user.role`, which is `VENDO
 | POST | `/api/auth/login` | Public | Log in with email or phone and a password. | `email*`, `password*` |
 | POST | `/api/auth/otp/request` | Public | Send a one-time code to a phone. Not usable until SMS is connected. | `phone*` |
 | POST | `/api/auth/otp/verify` | Public | Check the code. A new number returns `422 REGISTRATION_REQUIRED`; repeat with the same code and role. | `phone*`, `code*`, `role` (`"VENDOR"`), `businessName`, `contactName`, `city` |
+| POST | `/api/auth/otp/firebase` | Public | Log in with a phone verified by Firebase. A new number returns `422 REGISTRATION_REQUIRED`; repeat with the same `idToken` and role. | `idToken*`, `role` (`"VENDOR"`), `businessName`, `contactName`, `city` |
 | POST | `/api/auth/refresh` | Public | Swap a refresh token for a new token pair. | `refreshToken*` |
 | POST | `/api/auth/logout` | Public | Revoke a refresh token. Returns `204`. | `refreshToken*` |
 | GET | `/api/auth/me` | Logged in | The logged-in account. | |

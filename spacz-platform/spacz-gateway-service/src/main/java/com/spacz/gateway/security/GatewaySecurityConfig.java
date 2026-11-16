@@ -59,7 +59,7 @@ public class GatewaySecurityConfig {
                                 "/docs/**").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/register/user",
                                 "/api/auth/register/vendor", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
-                                "/api/auth/otp/request", "/api/auth/otp/verify").permitAll()
+                                "/api/auth/otp/request", "/api/auth/otp/verify", "/api/auth/otp/firebase").permitAll()
                         // Role-restricted GETs that the public GET patterns below would otherwise match.
                         .pathMatchers(HttpMethod.GET, "/api/vendors/me", "/api/vendors/me/**",
                                 "/api/studyhalls/*/blocks", "/api/studyhalls/*/blocks/**",

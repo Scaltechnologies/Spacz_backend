@@ -8,6 +8,7 @@ import com.spacz.auth.client.dto.CreateVendorProfileRequest;
 import com.spacz.auth.config.OtpProperties;
 import com.spacz.auth.config.SecurityProperties;
 import com.spacz.auth.dto.AuthResponse;
+import com.spacz.auth.dto.FirebaseLoginRequest;
 import com.spacz.auth.dto.OtpRequestResponse;
 import com.spacz.auth.dto.OtpVerifyRequest;
 import com.spacz.auth.entity.OtpChallenge;
@@ -20,6 +21,7 @@ import com.spacz.auth.repository.UserAccountRepository;
 import com.spacz.auth.security.Role;
 import com.spacz.auth.service.OtpService;
 import com.spacz.auth.service.TokenService;
+import com.spacz.auth.service.firebase.FirebaseTokenVerifier;
 import com.spacz.auth.service.sms.SmsSender;
 import com.spacz.auth.service.support.PhoneNumbers;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +62,7 @@ public class OtpServiceImpl implements OtpService {
     private final OtpProperties properties;
     private final SecurityProperties securityProperties;
     private final AuditEvents auditEvents;
+    private final FirebaseTokenVerifier firebaseTokenVerifier;
     private final Clock clock;
 
     @Override
@@ -107,14 +110,31 @@ public class OtpServiceImpl implements OtpService {
             throw new InvalidCredentialsException("The code is invalid or has expired");
         }
 
+        return logInOrRegister(phone, Registration.of(request), () -> challenge.consume(now), now);
+    }
+
+    /**
+     * Firebase already sent the SMS and checked the code; only its ID token is verified here. The
+     * token is not single use, but it expires within an hour and proves control of the phone.
+     */
+    @Override
+    @Transactional
+    public AuthResponse verifyFirebase(FirebaseLoginRequest request) {
+        String verified = firebaseTokenVerifier.verifyPhone(request.idToken());
+        String phone = PhoneNumbers.normalize(verified, properties.defaultCountryCode());
+        return logInOrRegister(phone, Registration.of(request), () -> { }, clock.instant());
+    }
+
+    /** A missing registration role is reported before {@code onSuccess}, so an OTP code stays usable. */
+    private AuthResponse logInOrRegister(String phone, Registration registration, Runnable onSuccess, Instant now) {
         UserAccount account = accountRepository.findByPhone(phone).orElse(null);
-        if (account == null && request.role() == null) {
+        if (account == null && registration.role() == null) {
             throw new BusinessRuleException("REGISTRATION_REQUIRED",
                     "No account for this phone number yet. Send role (USER or VENDOR) to register.");
         }
-        challenge.consume(now);
+        onSuccess.run();
         if (account == null) {
-            account = register(phone, request);
+            account = register(phone, registration);
         } else {
             AuthServiceImpl.ensureActive(account);
         }
@@ -129,7 +149,7 @@ public class OtpServiceImpl implements OtpService {
         challengeRepository.deleteCreatedBefore(clock.instant().minus(Duration.ofDays(1)));
     }
 
-    private UserAccount register(String phone, OtpVerifyRequest request) {
+    private UserAccount register(String phone, Registration request) {
         Role role = request.role();
         if (role == Role.ADMIN) {
             throw new ForbiddenException("ADMIN accounts cannot be registered");
@@ -152,6 +172,19 @@ public class OtpServiceImpl implements OtpService {
         }
         log.info("Registered {} account {} via phone OTP", role, account.getId());
         return account;
+    }
+
+    /** Registration fields shared by the OTP and Firebase requests. */
+    private record Registration(Role role, String firstName, String lastName, String city,
+                                String businessName, String contactName) {
+
+        static Registration of(OtpVerifyRequest r) {
+            return new Registration(r.role(), r.firstName(), r.lastName(), r.city(), r.businessName(), r.contactName());
+        }
+
+        static Registration of(FirebaseLoginRequest r) {
+            return new Registration(r.role(), r.firstName(), r.lastName(), r.city(), r.businessName(), r.contactName());
+        }
     }
 
     private String generateCode() {
