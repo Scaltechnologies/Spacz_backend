@@ -1,6 +1,7 @@
 package com.spacz.studyhall.service.impl;
 
 import com.spacz.studyhall.audit.AuditEvents;
+import com.spacz.studyhall.notify.StudyHallNotifier;
 import com.spacz.studyhall.config.StudyHallProperties;
 import com.spacz.studyhall.dto.legacy.LegacyRequests;
 import com.spacz.studyhall.dto.legacy.LegacyResponses;
@@ -72,6 +73,7 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
     private final LegacyMapper mapper;
     private final StudyHallProperties properties;
     private final AuditEvents auditEvents;
+    private final StudyHallNotifier notifier;
     private final Clock clock;
 
     // ------------------------------------------------------------------ owners
@@ -93,6 +95,7 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
         VendorProfile saved = vendorRepository.saveAndFlush(vendor);
         auditEvents.record(vendorId, "VENDOR", "VENDOR_SUBMITTED", "VENDOR", vendorId,
                 "Vendor " + saved.displayName() + " registered through the Partner app");
+        notifier.vendorSubmitted(saved);
         return mapper.ownerWithProperties(saved, List.of());
     }
 
@@ -158,6 +161,7 @@ public class LegacyPartnerServiceImpl implements LegacyPartnerService {
         StudyHall saved = studyHallRepository.saveAndFlush(hall);
         auditEvents.record(vendorId, "VENDOR", "STUDY_HALL_CREATED", "STUDY_HALL", saved.getId(),
                 "Created study hall '" + saved.getName() + "' through the Partner app");
+        notifier.hallSubmitted(saved);
         return mapper.propertyWithChildren(saved);
     }
 

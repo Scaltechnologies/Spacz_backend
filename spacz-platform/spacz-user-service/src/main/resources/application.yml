@@ -47,6 +47,7 @@ spacz:
       api-key: ${INTERNAL_API_KEY:dev-only-internal-api-key-change-me}
   clients:
     studyhall-service-url: ${STUDYHALL_SERVICE_URL:http://localhost:8083}
+    notification-service-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
     connect-timeout: 2s
     read-timeout: 5s
 

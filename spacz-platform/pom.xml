@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Aggregator only: builds all five services with one command (./mvnw clean verify).
+  Aggregator only: builds all six services with one command (./mvnw clean verify).
   Every service has spring-boot-starter-parent as its own parent and can be built on its own,
   which is what each Dockerfile does.
 -->
@@ -14,13 +14,14 @@
     <version>1.0.0</version>
     <packaging>pom</packaging>
     <name>spacz-platform</name>
-    <description>SPACZ study-hall management platform (5 microservices)</description>
+    <description>SPACZ study-hall management platform (6 microservices)</description>
 
     <modules>
         <module>spacz-auth-service</module>
         <module>spacz-user-service</module>
         <module>spacz-studyhall-service</module>
         <module>spacz-admin-service</module>
+        <module>spacz-notification-service</module>
         <module>spacz-gateway-service</module>
     </modules>
 </project>

@@ -5,6 +5,7 @@ import com.spacz.user.dto.FeedbackResponse;
 import com.spacz.user.dto.PageResponse;
 import com.spacz.user.entity.Feedback;
 import com.spacz.user.repository.FeedbackRepository;
+import com.spacz.user.notify.UserNotifier;
 import com.spacz.user.service.FeedbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +24,7 @@ public class FeedbackServiceImpl implements FeedbackService {
     private static final Duration DUPLICATE_WINDOW = Duration.ofMinutes(1);
 
     private final FeedbackRepository feedbackRepository;
+    private final UserNotifier notifier;
 
     @Override
     @Transactional
@@ -35,7 +37,11 @@ public class FeedbackServiceImpl implements FeedbackService {
                         userId, rating, since)
                 : feedbackRepository.findFirstByUserIdAndRatingAndCommentAndCreatedAtAfterOrderByCreatedAtDesc(
                         userId, rating, comment, since);
-        Feedback feedback = duplicate.orElseGet(() -> feedbackRepository.save(Feedback.create(userId, rating, comment)));
+        Feedback feedback = duplicate.orElseGet(() -> {
+            Feedback saved = feedbackRepository.save(Feedback.create(userId, rating, comment));
+            notifier.feedbackSubmitted(userId, saved.getId(), rating, comment);
+            return saved;
+        });
         return FeedbackResponse.from(feedback);
     }
 

@@ -19,6 +19,19 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+# Settings added after the first deploy. Checked up front so a missing one stops the deploy before
+# anything changes, with a clear message (instead of a compose error halfway through).
+for key in NOTIFICATION_DB_PASSWORD; do
+  if ! grep -qE "^${key}=.+" "$ENV_FILE"; then
+    echo "Missing $key in $ENV_FILE - add it (see deploy/.env.production.example). Nothing was changed." >&2
+    exit 1
+  fi
+done
+
+# Services added after earlier builds. A build from before a service existed has no image for it, so
+# deploying or rolling back to such a build starts the stack without that service.
+OPTIONAL_SERVICES=(notification-service)
+
 CURRENT_TAG="$(cat "$TAG_FILE" 2>/dev/null || true)"
 PREVIOUS_TAG="$(cat "$PREVIOUS_TAG_FILE" 2>/dev/null || true)"
 
@@ -45,9 +58,24 @@ cd "$APP_DIR/deploy"
 compose() { docker compose --env-file "$ENV_FILE" -f docker-compose.prod.yml "$@"; }
 
 # Starts one tag and waits until every container with a healthcheck reports healthy.
+# (Called in an `if`, where `set -e` does not apply: every step checks its own result.)
 start() {
   export IMAGE_TAG="$1"
-  compose pull --quiet && compose up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
+  local skip=() required
+  for svc in "${OPTIONAL_SERVICES[@]}"; do
+    if ! compose pull --quiet "$svc" >/dev/null 2>&1; then
+      echo "    No $svc image for $IMAGE_TAG; starting without it."
+      skip+=(--scale "$svc=0")
+    fi
+  done
+  required=$(compose config --services | grep -vxF -f <(printf '%s\n' "${OPTIONAL_SERVICES[@]}")) || return 1
+  # shellcheck disable=SC2086  # one service name per word
+  compose pull --quiet $required || return 1
+  # Databases first: creates the database of a newly added service on this existing server (the
+  # script leaves existing databases and passwords untouched), before that service starts.
+  compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" postgres || return 1
+  compose exec -T postgres bash -s < "$APP_DIR/docker/postgres/init-databases.sh" || return 1
+  compose up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT" "${skip[@]}"
 }
 
 # Restore point: a rollback only swaps images, it cannot undo database migrations or data changes

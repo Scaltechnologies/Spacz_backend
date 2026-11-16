@@ -6,6 +6,7 @@ import com.spacz.user.exception.BusinessRuleException;
 import com.spacz.user.exception.ResourceNotFoundException;
 import com.spacz.user.exception.SpaczException;
 import com.spacz.user.repository.UserDocumentRepository;
+import com.spacz.user.notify.UserNotifier;
 import com.spacz.user.service.UserDocumentService;
 import com.spacz.user.storage.DocumentStorage;
 import com.spacz.user.storage.StorageProperties;
@@ -37,6 +38,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
     private final UserDocumentRepository documentRepository;
     private final DocumentStorage storage;
     private final StorageProperties storageProperties;
+    private final UserNotifier notifier;
 
     @Override
     @Transactional(readOnly = true)
@@ -97,6 +99,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         // Metadata only — never the image contents.
         log.info("Document {} stored for user {} ({} bytes, {}, {})", type, userId, bytes.length, contentType,
                 previousKey == null ? "new" : "replaced");
+        notifier.documentUploaded(userId, document, previousKey != null);
         return UserDocumentResponse.from(document);
     }
 

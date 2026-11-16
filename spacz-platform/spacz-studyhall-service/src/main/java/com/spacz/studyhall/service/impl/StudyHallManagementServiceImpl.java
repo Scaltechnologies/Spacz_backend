@@ -1,6 +1,7 @@
 package com.spacz.studyhall.service.impl;
 
 import com.spacz.studyhall.audit.AuditEvents;
+import com.spacz.studyhall.notify.StudyHallNotifier;
 import com.spacz.studyhall.config.StudyHallProperties;
 import com.spacz.studyhall.dto.PageResponse;
 import com.spacz.studyhall.dto.hall.CreateStudyHallRequest;
@@ -66,6 +67,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
     private final HallImageService hallImageService;
     private final StudyHallProperties properties;
     private final AuditEvents auditEvents;
+    private final StudyHallNotifier notifier;
     private final Clock clock;
 
     @Override
@@ -84,6 +86,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
         StudyHall saved = studyHallRepository.saveAndFlush(hall);
         auditEvents.record(vendor, "STUDY_HALL_CREATED", "STUDY_HALL", saved.getId(),
                 "Created study hall '" + saved.getName() + "'");
+        notifier.hallSaved(saved, true);
         return assembler.detail(saved);
     }
 
@@ -107,6 +110,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
                 request.contactEmail(), request.pricePerDay(), request.pricePerMonth(), request.rules());
         auditEvents.record(vendor, "STUDY_HALL_UPDATED", "STUDY_HALL", studyHallId,
                 "Updated study hall '" + hall.getName() + "'");
+        notifier.hallSaved(hall, false);
         return assembler.detail(studyHallRepository.saveAndFlush(hall));
     }
 
@@ -124,6 +128,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
         studyHallRepository.delete(hall);
         auditEvents.record(vendor, "STUDY_HALL_DELETED", "STUDY_HALL", studyHallId,
                 "Deleted study hall '" + hall.getName() + "'");
+        notifier.hallDeleted(vendor.userId(), studyHallId, hall.getName());
     }
 
     @Override
@@ -152,10 +157,12 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
             owner.submitWithoutCompletenessCheck(clock.instant());
             auditEvents.record(vendor, "VENDOR_SUBMITTED", "VENDOR", owner.getVendorId(),
                     "Vendor " + owner.displayName() + " submitted for approval with study hall '" + hall.getName() + "'");
+            notifier.vendorSubmitted(owner);
         }
         hall.submitForApproval(properties.approvalRequired(), clock.instant());
         auditEvents.record(vendor, "STUDY_HALL_SUBMITTED", "STUDY_HALL", studyHallId,
                 "Submitted study hall '" + hall.getName() + "' for approval");
+        notifier.hallSubmitted(hall);
         return assembler.detail(studyHallRepository.saveAndFlush(hall));
     }
 

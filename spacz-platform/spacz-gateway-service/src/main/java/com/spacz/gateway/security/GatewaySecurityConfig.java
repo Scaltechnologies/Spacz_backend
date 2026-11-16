@@ -68,8 +68,9 @@ public class GatewaySecurityConfig {
                                 "/api/studyhalls/*/bookings", "/api/studyhalls/*/bookings/**").hasRole("VENDOR")
                         .pathMatchers(HttpMethod.GET, "/api/programs/all", "/api/amenities/all").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.GET, "/api/studyhalls", "/api/studyhalls/**", "/api/programs",
-                                "/api/programs/**", "/api/amenities", "/api/amenities/**", "/api/vendors/*", "/api/offers").permitAll()
-                        .pathMatchers("/api/admin/**").hasRole("ADMIN")
+                                "/api/programs/**", "/api/amenities", "/api/amenities/**", "/api/vendors/*", "/api/offers",
+                                "/api/notifications/categories").permitAll()
+                        .pathMatchers("/api/admin/**", "/api/notifications/admin/**").hasRole("ADMIN")
                         .pathMatchers("/api/programs/**", "/api/amenities/**").hasRole("ADMIN")
                         .pathMatchers("/api/owners/**", "/api/properties/**", "/api/blocks/**", "/api/seats/**",
                                 "/amenities/**", "/images/**").hasRole("VENDOR")

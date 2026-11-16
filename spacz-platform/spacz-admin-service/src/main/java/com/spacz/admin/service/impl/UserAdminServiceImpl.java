@@ -15,6 +15,7 @@ import com.spacz.admin.exception.SpaczException;
 import com.spacz.admin.security.AuthenticatedUser;
 import com.spacz.admin.service.AuditService;
 import com.spacz.admin.service.UserAdminService;
+import com.spacz.admin.notify.AdminNotifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class UserAdminServiceImpl implements UserAdminService {
     private final UserServiceClient userClient;
     private final StudyHallServiceClient studyHallClient;
     private final AuditService auditService;
+    private final AdminNotifier notifier;
 
     @Override
     public PageResponse<AccountDto> search(String search, String role, String status, Pageable pageable) {
@@ -68,6 +70,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         AccountDto account = authClient.updateStatus(userId, "SUSPENDED");
         auditService.record(admin, AuditAction.USER_SUSPENDED, "USER_ACCOUNT", userId,
                 "Suspended " + account.role() + " account " + identifier(account) + ": " + reason);
+        notifier.accountSuspended(account, reason);
         return account;
     }
 
@@ -77,6 +80,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         AccountDto account = authClient.updateStatus(userId, "ACTIVE");
         auditService.record(admin, AuditAction.USER_ACTIVATED, "USER_ACCOUNT", userId,
                 "Activated " + account.role() + " account " + identifier(account) + (reason != null ? ": " + reason : ""));
+        notifier.accountActivated(account);
         return account;
     }
 

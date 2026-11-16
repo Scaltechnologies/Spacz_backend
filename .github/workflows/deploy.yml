@@ -1,4 +1,4 @@
-# On every push to main: test -> build & push the 5 images to GHCR -> deploy them to the VPS ->
+# On every push to main: test -> build & push the 6 images to GHCR -> deploy them to the VPS ->
 # smoke-test the public API (and roll back automatically if it fails).
 #
 # Manual run (Actions tab -> Deploy -> Run workflow):
@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        service: [auth-service, user-service, studyhall-service, admin-service, gateway-service]
+        service: [auth-service, user-service, studyhall-service, admin-service, notification-service, gateway-service]
     steps:
       - uses: actions/checkout@v7
 
@@ -169,6 +169,7 @@ jobs:
           check 200 GET  /api/offers                          # admin-service + its database (live offers)
           check 200 GET  /api/studyhalls/locations            # studyhall-service city list
           check 401 GET  /api/notifications                   # student notifications need a login
+          check 200 GET  /api/notifications/categories        # notification-service + gateway route
 
       - name: Roll back after failed smoke test
         if: ${{ failure() && steps.smoke.conclusion == 'failure' && env.REQUESTED_TAG != 'rollback' }}

@@ -39,11 +39,18 @@ spring:
           uri: ${ADMIN_SERVICE_URL:http://localhost:8084}
           predicates:
             - Path=/api/admin/**
-        # Student-facing admin content (live offers, notifications).
+        # Student-facing admin content: live offers and the offers/updates feed at exactly GET /api/notifications.
+        # Must stay ABOVE notification-service: routes are matched in this order and /api/notifications/**
+        # would otherwise also match /api/notifications.
         - id: admin-content
           uri: ${ADMIN_SERVICE_URL:http://localhost:8084}
           predicates:
-            - Path=/api/offers,/api/offers/**,/api/notifications,/api/notifications/**
+            - Path=/api/offers,/api/offers/**,/api/notifications
+        # Notification inbox, push devices, preferences and admin sending (everything below /api/notifications/).
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/notifications/**
         # OpenAPI documents of each service, aggregated in the gateway's Swagger UI.
         - id: auth-docs
           uri: ${AUTH_SERVICE_URL:http://localhost:8081}
@@ -69,6 +76,12 @@ spring:
             - Path=/docs/admin/v3/api-docs
           filters:
             - SetPath=/v3/api-docs
+        - id: notification-docs
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/docs/notification/v3/api-docs
+          filters:
+            - SetPath=/v3/api-docs
 
 spacz:
   gateway:
@@ -90,6 +103,8 @@ springdoc:
         url: /docs/studyhall/v3/api-docs
       - name: admin-service
         url: /docs/admin/v3/api-docs
+      - name: notification-service
+        url: /docs/notification/v3/api-docs
 
 management:
   endpoints:

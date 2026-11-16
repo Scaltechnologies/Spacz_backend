@@ -30,6 +30,7 @@ services:
       USER_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD must be set in .env}
       STUDYHALL_DB_PASSWORD: ${STUDYHALL_DB_PASSWORD:?STUDYHALL_DB_PASSWORD must be set in .env}
       ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD:?ADMIN_DB_PASSWORD must be set in .env}
+      NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?NOTIFICATION_DB_PASSWORD must be set in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/01-init-databases.sh:ro
@@ -69,6 +70,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/spacz_user
       DB_USERNAME: spacz_user
       DB_PASSWORD: ${USER_DB_PASSWORD}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
       STUDYHALL_SERVICE_URL: http://studyhall-service:8083
       DOCUMENTS_DIR: /data/user-documents
     volumes:
@@ -89,6 +91,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/spacz_studyhall
       DB_USERNAME: spacz_studyhall
       DB_PASSWORD: ${STUDYHALL_DB_PASSWORD}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
       USER_SERVICE_URL: http://user-service:8082
       ADMIN_SERVICE_URL: http://admin-service:8084
       STUDYHALL_APPROVAL_REQUIRED: ${STUDYHALL_APPROVAL_REQUIRED:-true}
@@ -115,6 +118,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/spacz_auth
       DB_USERNAME: spacz_auth
       DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
       USER_SERVICE_URL: http://user-service:8082
       STUDYHALL_SERVICE_URL: http://studyhall-service:8083
       ADMIN_SERVICE_URL: http://admin-service:8084
@@ -142,6 +146,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/spacz_admin
       DB_USERNAME: spacz_admin
       DB_PASSWORD: ${ADMIN_DB_PASSWORD}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
       AUTH_SERVICE_URL: http://auth-service:8081
       USER_SERVICE_URL: http://user-service:8082
       STUDYHALL_SERVICE_URL: http://studyhall-service:8083
@@ -151,6 +156,24 @@ services:
       postgres:
         condition: service_healthy
       auth-service:
+        condition: service_healthy
+
+  # In-app + push notifications for every app. Other services send to it best effort, so nothing
+  # depends on it being up. Push needs FCM_CREDENTIALS_BASE64 (SPACZ Firebase service account).
+  notification-service:
+    <<: *service-defaults
+    build: ./spacz-notification-service
+    image: spacz/notification-service:latest
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/spacz_notification
+      DB_USERNAME: spacz_notification
+      DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+      FCM_CREDENTIALS_BASE64: ${FCM_CREDENTIALS_BASE64:-}
+    ports:
+      - "${NOTIFICATION_HOST_PORT:-8085}:8085"
+    depends_on:
+      postgres:
         condition: service_healthy
 
   gateway-service:
@@ -165,6 +188,7 @@ services:
       USER_SERVICE_URL: http://user-service:8082
       STUDYHALL_SERVICE_URL: http://studyhall-service:8083
       ADMIN_SERVICE_URL: http://admin-service:8084
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "${GATEWAY_HOST_PORT:-8080}:8080"

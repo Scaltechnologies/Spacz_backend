@@ -61,6 +61,7 @@ spacz:
     user-service-url: ${USER_SERVICE_URL:http://localhost:8082}
     studyhall-service-url: ${STUDYHALL_SERVICE_URL:http://localhost:8083}
     admin-service-url: ${ADMIN_SERVICE_URL:http://localhost:8084}
+    notification-service-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
     connect-timeout: 2s
     read-timeout: 5s
 

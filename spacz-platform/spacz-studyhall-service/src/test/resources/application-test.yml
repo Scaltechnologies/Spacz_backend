@@ -15,6 +15,9 @@ spring:
       data-locations: classpath:test-data.sql
 
 spacz:
+  notifications:
+    # no notification-service in tests
+    enabled: false
   storage:
     hall-images-dir: ${java.io.tmpdir}/spacz-test-hall-images
     max-image-bytes: 1887436

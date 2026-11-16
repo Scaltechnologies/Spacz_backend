@@ -9,6 +9,7 @@ import com.spacz.user.entity.UserProfile;
 import com.spacz.user.exception.ResourceNotFoundException;
 import com.spacz.user.mapper.UserMapper;
 import com.spacz.user.repository.UserProfileRepository;
+import com.spacz.user.notify.UserNotifier;
 import com.spacz.user.service.ActivityService;
 import com.spacz.user.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final UserProfileRepository profileRepository;
     private final ActivityService activityService;
     private final UserMapper mapper;
+    private final UserNotifier notifier;
 
     @Override
     @Transactional(readOnly = true)
@@ -50,6 +52,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         profile.setPreferredStudySlot(request.preferredStudySlot());
         profile.setDailyStudyHoursGoal(request.dailyStudyHoursGoal());
         activityService.record(userId, ActivityType.PROFILE_UPDATED, "Profile updated", "USER_PROFILE", profile.getId());
+        notifier.profileUpdated(userId, profile.getId());
         return mapper.toResponse(profileRepository.saveAndFlush(profile));
     }
 

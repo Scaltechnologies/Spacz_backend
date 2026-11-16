@@ -174,7 +174,17 @@ The old endpoints keep their paths and JSON: `/api/owners`, `/api/properties`, `
 `/api/auth/otp/request` + `/otp/verify` (`role: "VENDOR"` the first time), and send the bearer token
 on every call. Details: [MIGRATION_PLAN.md §7](MIGRATION_PLAN.md#7-outcome).
 
-## 8. Formats
+## 8. Notifications (all apps)
+
+Every app (student app, Partner app, admin panel) uses the same endpoints under `/api/notifications/`:
+inbox, unread badge, mark read, push device registration and push preferences. After login, register
+the FCM token with `POST /api/notifications/devices` (`app`: `USER_APP`, `PARTNER_APP` or `ADMIN_APP`);
+on logout call `POST /api/notifications/devices/unregister`. Admins send announcements with
+`POST /api/notifications/admin/send`. The full list of notifications, payloads and the app checklist
+are in [NOTIFICATIONS.md](NOTIFICATIONS.md). (`GET /api/notifications` itself is still the student
+offers + updates feed.)
+
+## 9. Formats
 
 Dates are `YYYY-MM-DD`, times `HH:mm`, timestamps ISO-8601 UTC. Money is a JSON number with 2
 decimals (INR). "Today" for booking rules is Asia/Kolkata. Enums are UPPER_CASE strings.
