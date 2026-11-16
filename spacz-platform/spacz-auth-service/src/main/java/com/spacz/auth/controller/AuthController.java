@@ -4,6 +4,7 @@ import com.spacz.auth.config.OpenApiConfig;
 import com.spacz.auth.dto.AccountResponse;
 import com.spacz.auth.dto.AuthResponse;
 import com.spacz.auth.dto.ChangePasswordRequest;
+import com.spacz.auth.dto.FirebaseLoginRequest;
 import com.spacz.auth.dto.LoginRequest;
 import com.spacz.auth.dto.OtpRequest;
 import com.spacz.auth.dto.OtpRequestResponse;
@@ -93,6 +94,16 @@ public class AuthController {
     @ApiResponse(responseCode = "422", description = "REGISTRATION_REQUIRED: resend with role (and firstName for USER)", content = @Content(schema = @Schema(implementation = ApiError.class)))
     public AuthResponse verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
         return otpService.verify(request);
+    }
+
+    @PostMapping("/otp/firebase")
+    @Operation(summary = "Log in or register with a phone number verified by Firebase Phone Auth",
+            description = "Send the Firebase ID token the app receives after the user enters the SMS code.")
+    @ApiResponse(responseCode = "401", description = "Firebase token invalid, expired or without a phone number", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "422", description = "REGISTRATION_REQUIRED: resend with role (and firstName for USER)", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "503", description = "FIREBASE_NOT_CONFIGURED, or Google's keys could not be fetched", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public AuthResponse verifyFirebase(@Valid @RequestBody FirebaseLoginRequest request) {
+        return otpService.verifyFirebase(request);
     }
 
     @PostMapping("/refresh")

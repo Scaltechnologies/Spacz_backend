@@ -57,6 +57,9 @@ spacz:
     sms-provider: ${OTP_SMS_PROVIDER:log}
     # DEVELOPMENT ONLY: returns the code in the /otp/request response. Never enable in production.
     expose-code-in-response: ${OTP_EXPOSE_CODE:false}
+  firebase:
+    # Firebase project ID for Firebase Phone Auth (POST /api/auth/otp/firebase). Blank disables it.
+    project-id: ${FIREBASE_PROJECT_ID:}
   clients:
     user-service-url: ${USER_SERVICE_URL:http://localhost:8082}
     studyhall-service-url: ${STUDYHALL_SERVICE_URL:http://localhost:8083}

@@ -1,6 +1,7 @@
 package com.spacz.auth.service;
 
 import com.spacz.auth.dto.AuthResponse;
+import com.spacz.auth.dto.FirebaseLoginRequest;
 import com.spacz.auth.dto.OtpRequestResponse;
 import com.spacz.auth.dto.OtpVerifyRequest;
 
@@ -12,4 +13,7 @@ public interface OtpService {
     OtpRequestResponse requestCode(String phone, String requesterIp);
 
     AuthResponse verify(OtpVerifyRequest request);
+
+    /** Login or registration with a phone number verified by Firebase Phone Auth. */
+    AuthResponse verifyFirebase(FirebaseLoginRequest request);
 }
