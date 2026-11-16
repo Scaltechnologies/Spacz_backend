@@ -54,7 +54,7 @@ public class SecurityConfig {
                         .requestMatchers(DOCS_AND_HEALTH).permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/register", "/api/auth/register/user", "/api/auth/register/vendor",
-                                "/api/auth/otp/request", "/api/auth/otp/verify", "/api/auth/otp/firebase",
+                                "/api/auth/otp/request", "/api/auth/otp/verify",
                                 "/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth

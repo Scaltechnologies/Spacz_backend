@@ -23,7 +23,7 @@ The owner, property, block, seat, amenity and image paths and JSON stayed the sa
 
 ## Know before you start
 
-- **Phone OTP:** the apps use Firebase Phone Auth. Send the SMS and check the code with the Firebase SDK, then send `await user.getIdToken()` to `POST /api/auth/otp/firebase`. Do not send the Firebase code to `/api/auth/otp/verify`: that route only accepts codes from `/api/auth/otp/request`, so it answers `401` ("invalid or expired").
+- **Phone OTP:** SMS isn't connected yet, so codes don't reach phones or appear in API responses. Use email and password sign-up for testing. Phone login needs SMS before launch.
 - **Swagger:** the interactive docs show the wrong request and response fields for some Partner routes, including amenities. Use this file for those routes.
 - **Image files:** there is no file upload route. Upload the file elsewhere first, then send its URL as `imageUrl`.
 - **Browser testing:** native apps aren't affected by browser address rules, but Expo web is. Browser calls are accepted from `http://localhost:3000` and `http://localhost:5173` only.
@@ -53,7 +53,6 @@ The owner, property, block, seat, amenity and image paths and JSON stayed the sa
 |---|---|---|---|---|
 | POST | `/api/auth/otp/request` | Public | Send a one-time code to a phone. Not usable until SMS is connected. | `phone*` |
 | POST | `/api/auth/otp/verify` | Public | Check the code. A new number returns `422 REGISTRATION_REQUIRED`; repeat with the same code and `role`. | `phone*`, `code*`, `role` (`"VENDOR"`), `businessName`, `contactName`, `city` |
-| POST | `/api/auth/otp/firebase` | Public | Log in with a phone verified by Firebase. A new number returns `422 REGISTRATION_REQUIRED`; repeat with the same `idToken` and `role`. | `idToken*`, `role` (`"VENDOR"`), `businessName`, `contactName`, `city` |
 | POST | `/api/auth/register/vendor` | Public | Create a vendor account with email and password. Use this for testing. | `email*`, `password*`, `businessName*`, `contactName*`, `phone*`, `city` |
 | POST | `/api/auth/login` | Public | Log in with email or phone and a password. | `email*`, `password*` |
 | POST | `/api/auth/refresh` | Public | Swap a refresh token for a new token pair. | `refreshToken*` |
