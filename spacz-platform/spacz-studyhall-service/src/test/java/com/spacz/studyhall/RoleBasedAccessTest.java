@@ -62,6 +62,8 @@ class RoleBasedAccessTest extends ApiTestSupport {
         expect(HttpMethod.POST, "/api/amenities", USER, 403);
 
         expect(HttpMethod.GET, "/api/bookings/me", USER, 200);
+        // Students never self-confirm: only a successful payment (or an ADMIN override) confirms a booking.
+        expect(HttpMethod.POST, "/api/bookings/1/confirm", USER, 403);
     }
 
     @Test

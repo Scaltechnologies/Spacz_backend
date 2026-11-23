@@ -22,7 +22,8 @@ public class BookingLifecycleJob {
     private final BookingService bookingService;
     private final EnrollmentService enrollmentService;
 
-    @Scheduled(fixedDelayString = "${spacz.booking.lifecycle-interval-ms:60000}", initialDelay = 30000)
+    @Scheduled(fixedDelayString = "${spacz.booking.lifecycle-interval-ms:60000}",
+            initialDelayString = "${spacz.booking.lifecycle-initial-delay-ms:30000}")
     public void run() {
         try {
             int expired = bookingService.expireHolds(BATCH_SIZE);

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 /**
  * admin-service → studyhall-service (/internal/vendors, /internal/studyhalls, /internal/bookings ...).
@@ -119,6 +120,129 @@ public class StudyHallServiceClient extends BaseServiceClient {
     public JsonNode enrollments(Long userId) {
         return execute(() -> restClient.get()
                 .uri(uri -> uri.path("/internal/enrollments").queryParam("userId", userId).build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** Admin kill switch for Pay at Hall on one vendor's halls. Returns {vendorId, payAtHallEnabled}. */
+    public JsonNode setPayAtHall(Long vendorId, boolean enabled) {
+        return execute(() -> restClient.patch()
+                .uri("/internal/vendors/{vendorId}/pay-at-hall", vendorId)
+                .body(Map.of("enabled", enabled))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** Append-only audit trail of one payment, passed through. */
+    public JsonNode paymentAuditEvents(Long paymentId) {
+        return execute(() -> restClient.get()
+                .uri("/internal/payments/{paymentId}/audit-events", paymentId)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** Every payment of one booking (newest first), passed through. */
+    public JsonNode paymentsForBooking(Long bookingId) {
+        return execute(() -> restClient.get()
+                .uri(uri -> uri.path("/internal/payments").queryParam("bookingId", bookingId).build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** Ledger transactions (payments received, refunds), filtered and paged, passed through. */
+    public JsonNode transactions(TransactionQuery q, Pageable pageable) {
+        return execute(() -> restClient.get()
+                .uri(uri -> q.apply(QueryParams.page(uri.path("/internal/transactions"), pageable)).build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** Ledger totals over the same filters, passed through. */
+    public JsonNode transactionSummary(TransactionQuery q) {
+        return execute(() -> restClient.get()
+                .uri(uri -> q.apply(uri.path("/internal/transactions/summary")).build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** A booking's status history, payments and transactions, passed through. */
+    public JsonNode bookingHistory(Long bookingId) {
+        return execute(() -> restClient.get()
+                .uri("/internal/bookings/{bookingId}/history", bookingId)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** Optional ledger filters; null fields are left out of the query string. */
+    public record TransactionQuery(Long userId, Long vendorId, Long studyHallId, Long bookingId, String type,
+                                   String status, String paymentMethod, LocalDate from, LocalDate to) {
+
+        org.springframework.web.util.UriBuilder apply(org.springframework.web.util.UriBuilder uri) {
+            return uri.queryParamIfPresent("userId", QueryParams.optional(userId))
+                    .queryParamIfPresent("vendorId", QueryParams.optional(vendorId))
+                    .queryParamIfPresent("studyHallId", QueryParams.optional(studyHallId))
+                    .queryParamIfPresent("bookingId", QueryParams.optional(bookingId))
+                    .queryParamIfPresent("type", QueryParams.optional(type))
+                    .queryParamIfPresent("status", QueryParams.optional(status))
+                    .queryParamIfPresent("paymentMethod", QueryParams.optional(paymentMethod))
+                    .queryParamIfPresent("from", QueryParams.optional(from))
+                    .queryParamIfPresent("to", QueryParams.optional(to));
+        }
+    }
+
+    // ── vendor wallets and withdrawals (passed through) ──
+
+    public JsonNode withdrawals(String status, Long vendorId, Pageable pageable) {
+        return execute(() -> restClient.get()
+                .uri(uri -> QueryParams.page(uri.path("/internal/withdrawals"), pageable)
+                        .queryParamIfPresent("status", QueryParams.optional(status))
+                        .queryParamIfPresent("vendorId", QueryParams.optional(vendorId))
+                        .build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    public JsonNode withdrawal(Long withdrawalId) {
+        return execute(() -> restClient.get()
+                .uri("/internal/withdrawals/{id}", withdrawalId)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    /** action: processing | paid | reject. */
+    public JsonNode withdrawalAction(Long withdrawalId, String action, Map<String, Object> body) {
+        return execute(() -> restClient.post()
+                .uri("/internal/withdrawals/{id}/{action}", withdrawalId, action)
+                .body(body)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    public JsonNode vendorWallet(Long vendorId) {
+        return execute(() -> restClient.get()
+                .uri("/internal/vendors/{vendorId}/wallet", vendorId)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
+    public JsonNode vendorWalletEntries(Long vendorId, String type, int page, int size) {
+        return execute(() -> restClient.get()
+                .uri(uri -> uri.path("/internal/vendors/{vendorId}/wallet/entries")
+                        .queryParamIfPresent("type", QueryParams.optional(type))
+                        .queryParam("page", page)
+                        .queryParam("size", size)
+                        .build(vendorId))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, errorHandler())
                 .body(JsonNode.class));

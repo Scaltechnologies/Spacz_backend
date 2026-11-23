@@ -20,6 +20,8 @@ import com.spacz.studyhall.exception.BusinessRuleException;
 import com.spacz.studyhall.exception.ConflictException;
 import com.spacz.studyhall.exception.ResourceNotFoundException;
 import com.spacz.studyhall.exception.SpaczException;
+import com.spacz.studyhall.history.ActorType;
+import com.spacz.studyhall.history.BookingStatusChangedEvent;
 import com.spacz.studyhall.mapper.BookingMapper;
 import com.spacz.studyhall.repository.BookingRepository;
 import com.spacz.studyhall.repository.BookingSpecifications;
@@ -31,6 +33,8 @@ import com.spacz.studyhall.service.EnrollmentService;
 import com.spacz.studyhall.service.support.PageableSupport;
 import com.spacz.studyhall.service.support.PriceBreakdown;
 import com.spacz.studyhall.service.support.VendorAccess;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -41,6 +45,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -76,6 +81,10 @@ public class BookingServiceImpl implements BookingService {
     private final Clock clock;
     private final BookingPricing pricing;
 
+    /** Field-injected (not a constructor argument) so unit tests can build the service positionally. */
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /**
      * Double-booking prevention, in order:
      * <ol>
@@ -106,13 +115,14 @@ public class BookingServiceImpl implements BookingService {
                     .orElseThrow(() -> new ResourceNotFoundException("Program", request.programId()));
         }
 
-        bookingRepository.expireStaleHolds(seat.getId(), now, BookingStatus.PENDING, BookingStatus.EXPIRED);
+        expireStaleHolds(seat.getId(), now);
         checkAvailability(userId, seat, start, end, now);
 
         Booking booking = Booking.hold(newReference(), userId, seat, program, plan, start, end, unitPrice,
                 now.plus(properties.holdDuration()));
         booking.applyPricing(pricing.price(userId, plan, start, end, unitPrice, now));
         if (properties.autoConfirm()) {
+            // Dev/demo only: bypasses payment entirely. BOOKING_AUTO_CONFIRM must be false wherever payments are used.
             booking.confirm(now);
         }
         try {
@@ -124,6 +134,8 @@ public class BookingServiceImpl implements BookingService {
         }
         log.info("Booking {} created: user {} seat {} {} {}..{} ({})", booking.getBookingReference(), userId,
                 seat.getId(), plan, start, end, booking.getStatus());
+        recordStatus(booking, null, ActorType.USER, userId, null,
+                booking.getStatus() == BookingStatus.CONFIRMED ? "Booked (auto-confirmed, no payment)" : "Booked; seat held");
         publish(booking, "BOOKING_CREATED", "Booked seat " + seat.getSeatNumber() + " at " + hall.getName()
                 + " from " + start + " to " + end);
         if (booking.getStatus() == BookingStatus.CONFIRMED) {
@@ -188,21 +200,83 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
-    public BookingResponse confirm(Long userId, Long bookingId) {
-        Booking booking = ownBooking(userId, bookingId);
+    public BookingResponse confirmByAdmin(Long adminId, Long bookingId) {
+        Booking booking = bookingRepository.findDetailed(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        BookingStatus previous = booking.getStatus();
         booking.confirm(clock.instant());
         bookingRepository.saveAndFlush(booking);
+        recordStatus(booking, previous, ActorType.ADMIN, adminId, null, "Confirmed manually by an admin (no in-app payment)");
         enrollmentService.recordConfirmedBooking(booking);
+        log.info("Booking {} confirmed manually by an admin (no in-app payment)", booking.getBookingReference());
         publish(booking, "BOOKING_CONFIRMED", "Booking " + booking.getBookingReference() + " confirmed");
         return mapper.toResponse(booking);
+    }
+
+    /**
+     * Never catches DataIntegrityViolationException: after a failed flush the session is unusable. The
+     * seat is checked first, under the same seat row lock booking creation takes, so the exclusion
+     * constraint cannot fire here.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public PaidConfirmation confirmAfterPayment(Long bookingId, Long paymentId, ActorType actorType, Long actorId) {
+        Booking booking = bookingRepository.findDetailed(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        Seat seat = seatRepository.findByIdForUpdate(booking.getSeat().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Seat", booking.getSeat().getId()));
+        // Re-read under the seat lock: the lifecycle job may have expired the hold meanwhile.
+        entityManager.flush(); // refresh discards unflushed changes
+        entityManager.refresh(booking);
+        Instant now = clock.instant();
+        switch (booking.getStatus()) {
+            case CONFIRMED, COMPLETED -> {
+                return PaidConfirmation.ALREADY_CONFIRMED;
+            }
+            case CANCELLED -> {
+                return PaidConfirmation.SEAT_LOST;
+            }
+            case EXPIRED -> {
+                // Release other stale holds first (as booking creation does), then the seat and the student's
+                // slot in this hall must still be free for these dates.
+                expireStaleHolds(seat.getId(), now);
+                if (bookingRepository.existsOverlapping(seat.getId(), booking.getStartDate(), booking.getEndDate(),
+                        BookingStatus.OCCUPYING)
+                        || bookingRepository.existsUserOverlap(booking.getUserId(), booking.getStudyHall().getId(),
+                        booking.getStartDate(), booking.getEndDate(), now)) {
+                    return PaidConfirmation.SEAT_LOST;
+                }
+            }
+            default -> {
+                // PENDING (even past its hold): its row still occupies the seat, nobody else could book it.
+            }
+        }
+        BookingStatus previous = booking.getStatus();
+        booking.confirmAfterPayment(now);
+        bookingRepository.saveAndFlush(booking);
+        recordStatus(booking, previous, actorType, actorId, paymentId, actorType == ActorType.VENDOR
+                ? "Payment collected at the hall and confirmed by the vendor" : "Payment received");
+        enrollmentService.recordConfirmedBooking(booking);
+        publish(booking, "BOOKING_CONFIRMED", "Booking " + booking.getBookingReference() + " confirmed by payment");
+        return PaidConfirmation.CONFIRMED;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void extendHoldForPayment(Long bookingId, Instant until) {
+        bookingRepository.findById(bookingId).ifPresent(booking -> booking.extendHold(until));
     }
 
     @Override
     @Transactional
     public BookingResponse cancel(Long userId, Long bookingId, String reason) {
         Booking booking = ownBooking(userId, bookingId);
-        booking.cancel(reason == null || reason.isBlank() ? null : reason.trim(), clock.instant(), today());
+        BookingStatus previous = booking.getStatus();
+        String cleanReason = reason == null || reason.isBlank() ? null : reason.trim();
+        booking.cancel(cleanReason, clock.instant(), today());
         bookingRepository.saveAndFlush(booking);
+        recordStatus(booking, previous, ActorType.USER, userId, null,
+                cleanReason == null ? "Cancelled by the student" : "Cancelled by the student: " + cleanReason);
         publish(booking, "BOOKING_CANCELLED", "Booking " + booking.getBookingReference() + " cancelled");
         return mapper.toResponse(booking);
     }
@@ -275,6 +349,7 @@ public class BookingServiceImpl implements BookingService {
                 PageRequest.of(0, batchSize));
         expired.forEach(booking -> {
             booking.expire();
+            recordStatus(booking, BookingStatus.PENDING, ActorType.SYSTEM, null, null, "Seat hold expired without payment");
             publish(booking, "BOOKING_EXPIRED", "Seat hold for booking " + booking.getBookingReference() + " expired");
         });
         return expired.size();
@@ -286,9 +361,31 @@ public class BookingServiceImpl implements BookingService {
         List<Booking> finished = bookingRepository.findFinished(BookingStatus.CONFIRMED, today(), PageRequest.of(0, batchSize));
         finished.forEach(booking -> {
             booking.complete();
+            recordStatus(booking, BookingStatus.CONFIRMED, ActorType.SYSTEM, null, null, "Booking period ended");
             publish(booking, "BOOKING_COMPLETED", "Booking " + booking.getBookingReference() + " completed");
         });
         return finished.size();
+    }
+
+    /**
+     * Releases PENDING holds on this seat whose hold time has passed. Caller holds the seat row lock.
+     * Row by row with a guarded update (not one bulk update), so each booking that really changed here, and
+     * only those, gets a history row: if the lifecycle job expired one meanwhile, the guarded update matches
+     * nothing and that job records it instead.
+     */
+    private void expireStaleHolds(Long seatId, Instant now) {
+        for (Long id : bookingRepository.findStaleHoldIds(seatId, now, BookingStatus.PENDING)) {
+            if (bookingRepository.expireIfStale(id, now, BookingStatus.PENDING, BookingStatus.EXPIRED) == 1) {
+                events.publishEvent(BookingStatusChangedEvent.of(id, BookingStatus.PENDING, BookingStatus.EXPIRED,
+                        ActorType.SYSTEM, null, "Seat hold expired without payment"));
+            }
+        }
+    }
+
+    private void recordStatus(Booking booking, BookingStatus previous, ActorType actorType, Long actorId,
+                              Long paymentId, String reason) {
+        events.publishEvent(new BookingStatusChangedEvent(booking.getId(), previous, booking.getStatus(), actorType,
+                actorId, paymentId, reason));
     }
 
     private Booking ownBooking(Long userId, Long bookingId) {

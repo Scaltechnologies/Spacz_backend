@@ -38,6 +38,11 @@ spacz:
       issuer: ${JWT_ISSUER:spacz-auth}
     internal:
       api-key: ${INTERNAL_API_KEY:dev-only-internal-api-key-change-me}
+    # AES-256 key for payment gateway secrets stored at rest: base64 of 32 random bytes
+    # (openssl rand -base64 32). Deliberately no default: without it only the payment-gateway
+    # settings endpoints fail (with a clear message); the service still starts.
+    # Back it up: losing it makes stored secrets unrecoverable (re-enter them in the admin panel).
+    secrets-encryption-key: ${ADMIN_SECRETS_ENCRYPTION_KEY:}
   clients:
     auth-service-url: ${AUTH_SERVICE_URL:http://localhost:8081}
     user-service-url: ${USER_SERVICE_URL:http://localhost:8082}

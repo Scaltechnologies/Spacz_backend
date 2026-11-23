@@ -18,7 +18,32 @@ public interface BookingService {
     /** Validates a prospective booking and returns its server-computed price without holding the seat. */
     BookingQuoteResponse quote(Long userId, CreateBookingRequest request);
 
-    BookingResponse confirm(Long userId, Long bookingId);
+    /**
+     * ADMIN manual/offline override: confirms a PENDING booking without a payment (e.g. paid outside the
+     * app). Students never confirm their own bookings; that happens only through a successful payment.
+     */
+    BookingResponse confirmByAdmin(Long adminId, Long bookingId);
+
+    /** Outcome of {@link #confirmAfterPayment}. */
+    enum PaidConfirmation {
+        CONFIRMED,
+        /** Already CONFIRMED / COMPLETED (e.g. a second payment, or an earlier admin confirmation). */
+        ALREADY_CONFIRMED,
+        /** Cancelled, or expired and the seat (or the student's slot in the hall) was taken meanwhile. */
+        SEAT_LOST
+    }
+
+    /**
+     * Called only by the payment finalize step, inside its transaction (which already holds the payment
+     * row lock): confirms a PENDING booking, or revives an EXPIRED one if the seat is still free.
+     * {@code actorType}/{@code actorId} (the confirming vendor for Pay at Hall, else SYSTEM) go into the
+     * booking's status history.
+     */
+    PaidConfirmation confirmAfterPayment(Long bookingId, Long paymentId,
+                                         com.spacz.studyhall.history.ActorType actorType, Long actorId);
+
+    /** Keeps a PENDING booking's seat held until {@code until} while a payment session is open. */
+    void extendHoldForPayment(Long bookingId, java.time.Instant until);
 
     BookingResponse cancel(Long userId, Long bookingId, String reason);
 

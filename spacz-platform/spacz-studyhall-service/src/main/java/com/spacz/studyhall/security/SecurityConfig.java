@@ -58,6 +58,11 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(DOCS_AND_HEALTH).permitAll()
+                        // Called by Razorpay's servers: authenticated by the HMAC of the raw body, not a JWT.
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
+                        .requestMatchers("/api/payments/pay-at-hall", "/api/payments/pay-at-hall/**").hasRole("VENDOR")
+                        .requestMatchers("/api/payments/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/bookings/*/confirm").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/studyhalls", "/api/studyhalls/**",
                                 "/api/programs", "/api/programs/**", "/api/amenities", "/api/amenities/**",
                                 "/api/vendors/*").permitAll()

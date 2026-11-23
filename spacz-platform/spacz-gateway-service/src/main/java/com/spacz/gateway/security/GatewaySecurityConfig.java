@@ -57,6 +57,9 @@ public class GatewaySecurityConfig {
                         .pathMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**", "/v3/api-docs/**",
                                 "/docs/**").permitAll()
+                        // Called by Razorpay's servers (no SPACZ token): studyhall-service authenticates it by
+                        // the HMAC signature of the raw body.
+                        .pathMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/register/user",
                                 "/api/auth/register/vendor", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/otp/request", "/api/auth/otp/verify").permitAll()
@@ -80,8 +83,14 @@ public class GatewaySecurityConfig {
                         .pathMatchers("/api/studyhalls", "/api/studyhalls/**").hasRole("VENDOR")
                         // Booking actions are students only; GET /api/bookings/{id} stays open to the
                         // student, the hall's vendor and ADMIN (checked by studyhall-service).
-                        .pathMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/quote", "/api/bookings/*/confirm",
+                        .pathMatchers(HttpMethod.POST, "/api/bookings", "/api/bookings/quote",
                                 "/api/bookings/*/cancel").hasRole("USER")
+                        // Students never self-confirm: a booking is confirmed by its payment. ADMIN override only.
+                        .pathMatchers(HttpMethod.POST, "/api/bookings/*/confirm").hasRole("ADMIN")
+                        // Payments: vendors verify/confirm Pay at Hall; students pay; anyone logged in reads the mode.
+                        .pathMatchers("/api/payments/pay-at-hall", "/api/payments/pay-at-hall/**").hasRole("VENDOR")
+                        .pathMatchers(HttpMethod.GET, "/api/payments/mode").authenticated()
+                        .pathMatchers("/api/payments", "/api/payments/**").hasAnyRole("USER", "ADMIN")
                         .pathMatchers(HttpMethod.GET, "/api/bookings/me").hasRole("USER")
                         .pathMatchers("/api/**").authenticated()
                         .anyExchange().denyAll())

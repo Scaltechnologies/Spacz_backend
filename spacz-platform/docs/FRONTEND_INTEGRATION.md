@@ -116,7 +116,7 @@ Lists take `?page=0&size=20&sort=field,asc` and return
 | Filters | `GET /api/amenities`, `GET /api/programs` |
 | Hall page | `GET /api/studyhalls/{id}` (images, amenities, programs, hours, `blocks[]` with prices and amenities) · `GET /api/vendors/{vendorId}` (institute card) |
 | Seat picker | `GET /api/studyhalls/{id}/seats?startDate=&endDate=` |
-| Book | `POST /api/bookings` → `POST /api/bookings/{id}/confirm` · `POST /api/bookings/{id}/cancel {reason?}` |
+| Book | `POST /api/bookings` → pay: `POST /api/payments {bookingId, paymentMethod}` ([PAYMENTS.md](PAYMENTS.md)) · `POST /api/bookings/{id}/cancel {reason?}` |
 
 **Seat map:** draw each `blocks[i]` as a CSS grid of `totalRows × totalColumns` and place each seat at
 `(row, column)` (1-based). Empty cells are aisles or gaps. Only seats with `available: true` are
@@ -133,8 +133,9 @@ not. Each seat carries its effective `pricePerDay` and `pricePerMonth` (`null` =
 ```
 
 The response has `status: "PENDING"`, `units` (days or months), `unitPrice`, `totalPrice` and
-`holdExpiresAt` (15 minutes). The price always comes from the server. Take payment, then call
-`/confirm`. A confirmed booking makes the student a member of the hall (it appears in
+`holdExpiresAt` (15 minutes). The price always comes from the server. Then pay with
+`POST /api/payments` (Razorpay or Pay at Hall, see [PAYMENTS.md](PAYMENTS.md)): the booking becomes `CONFIRMED`
+only when the payment succeeds. Students cannot call `/confirm` (ADMIN only). A confirmed booking makes the student a member of the hall (it appears in
 `/api/users/me/enrollments`). On `409 SEAT_UNAVAILABLE`, reload the seat map. On
 `422 BOOKING_HOLD_EXPIRED`, book again.
 

@@ -60,12 +60,44 @@ spacz:
     max-days: 90
     max-advance-days: 90
     zone: ${BUSINESS_TIME_ZONE:Asia/Kolkata}
+  payment:
+    session-ttl: ${PAYMENT_SESSION_TTL:15m}   # online checkout session; past this the reconciliation sweep resolves/expires it
+    hold-grace: 5m                            # booking hold extends to payment expiresAt + this
+    gateway-config:
+      cache-ttl-seconds: 60                   # admin-configured credentials cache
+    mode-config:
+      cache-ttl-seconds: 60                   # admin-configured PAYMENT_MODE cache
+    reconcile:
+      interval-ms: 300000
+    refund:
+      interval-ms: 120000
+    pay-at-hall:
+      session-ttl: ${PAY_AT_HALL_SESSION_TTL:4h}  # also capped at the end of the booking's start day
+      max-code-attempts: 5
+      lockout: 15m
+      expiry-sweep-interval-ms: 300000
+  wallet:
+    commission-percent: ${WALLET_COMMISSION_PERCENT:0}      # SPACZ commission on seat price - discount, per booking
+    settlement-hold: ${WALLET_SETTLEMENT_HOLD:48h}          # online earnings are withdrawable after this
+    min-withdrawal: ${WALLET_MIN_WITHDRAWAL:100}
+    max-withdrawal: ${WALLET_MAX_WITHDRAWAL:200000}
+    max-payout-accounts: 5
   clients:
     user-service-url: ${USER_SERVICE_URL:http://localhost:8082}
     admin-service-url: ${ADMIN_SERVICE_URL:http://localhost:8084}
     notification-service-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
     connect-timeout: 2s
     read-timeout: 5s
+
+# OPTIONAL bootstrap fallback only. The normal path is an ADMIN saving the keys at
+# PUT /api/admin/payment-gateway/razorpay (admin-service, encrypted), picked up within 60s without a
+# restart. These are used only while admin-service has nothing configured. Leaving them unset does not
+# stop the service; only online payments fail with 503 PAYMENT_GATEWAY_NOT_CONFIGURED.
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID:}
+  key-secret: ${RAZORPAY_KEY_SECRET:}
+  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+  base-url: ${RAZORPAY_BASE_URL:https://api.razorpay.com/v1}
 
 management:
   endpoints:

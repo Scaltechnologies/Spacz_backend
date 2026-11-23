@@ -130,6 +130,8 @@ class StudyHallFlowIntegrationTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.totalPrice").value(5000.00))
                 .andExpect(jsonPath("$.programName").value("GATE"));
         send(post("/api/bookings/{id}/confirm", bookingId), TestTokens.bearer(900, "USER"), null)
+                .andExpect(status().isForbidden());
+        send(post("/api/bookings/{id}/confirm", bookingId), TestTokens.bearer(1, "ADMIN"), null)
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
 
         // 8. Walk-in student holds a seat; it is no longer bookable online.

@@ -95,6 +95,11 @@ public class VendorProfile {
     @Column(name = "legacy_owner_id", unique = true)
     private Long legacyOwnerId;
 
+    /** Admin kill switch: may students choose Pay at Hall at this vendor's halls? Never vendor-editable. */
+    @Setter(AccessLevel.NONE)
+    @Column(name = "pay_at_hall_enabled", nullable = false)
+    private boolean payAtHallEnabled = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -196,6 +201,11 @@ public class VendorProfile {
             }
         }
         statusReason = reason;
+    }
+
+    /** Admin-only (via /internal/vendors/{id}/pay-at-hall). */
+    public void changePayAtHall(boolean enabled) {
+        this.payAtHallEnabled = enabled;
     }
 
     /** Name shown to students: business name, falling back to the contact name. */

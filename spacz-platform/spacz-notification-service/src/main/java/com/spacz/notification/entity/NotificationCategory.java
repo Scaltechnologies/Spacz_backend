@@ -19,6 +19,8 @@ public enum NotificationCategory {
     BOOKING("Bookings"),
     ENROLLMENT("Enrollments"),
     UPLOAD("Uploads"),
+    /** Partner wallet withdrawals: requested, processing, paid, rejected. */
+    PAYOUT("Payouts"),
     OFFER("Offers"),
     ANNOUNCEMENT("Announcements"),
     /** Confirmation of the recipient's own action (profile updated, hall saved ...); in-app only by default. */

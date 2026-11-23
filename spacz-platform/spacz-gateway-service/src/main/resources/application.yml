@@ -29,7 +29,7 @@ spring:
         - id: studyhall-service
           uri: ${STUDYHALL_SERVICE_URL:http://localhost:8083}
           predicates:
-            - Path=/api/vendors/**,/api/studyhalls/**,/api/programs/**,/api/amenities/**,/api/bookings/**
+            - Path=/api/vendors/**,/api/studyhalls/**,/api/programs/**,/api/amenities/**,/api/bookings/**,/api/payments/**
         # Legacy Partner-app contract (formerly spacz-partner-service), served by studyhall-service.
         - id: studyhall-legacy-partner-api
           uri: ${STUDYHALL_SERVICE_URL:http://localhost:8083}

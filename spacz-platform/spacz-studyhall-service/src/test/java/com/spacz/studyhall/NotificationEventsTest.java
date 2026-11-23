@@ -95,7 +95,8 @@ class NotificationEventsTest extends ApiTestSupport {
             assertThat(n.data()).containsEntry("bookingId", String.valueOf(bookingId));
         });
 
-        send(post("/api/bookings/{id}/confirm", bookingId), student, null).andExpect(status().isOk());
+        send(post("/api/bookings/{id}/confirm", bookingId), student, null).andExpect(status().isForbidden());
+        send(post("/api/bookings/{id}/confirm", bookingId), TestTokens.bearer(1, "ADMIN"), null).andExpect(status().isOk());
         assertThat(only("BOOKING_CONFIRMED").recipientUserId()).isEqualTo(studentId);
         assertThat(only("BOOKING_RECEIVED")).satisfies(n -> {
             assertThat(n.recipientUserId()).isEqualTo(vendorId);

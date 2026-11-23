@@ -174,6 +174,15 @@ rollback if the older build cannot work with the newer schema.
   `docker logs spacz-notification-service-1 | grep -i push`.
 * Rolling back to a build from before the service existed starts the stack without it.
 
+**Payments** (see [PAYMENTS.md](PAYMENTS.md)):
+
+* Set `ADMIN_SECRETS_ENCRYPTION_KEY` in `/opt/spacz/.env` (`openssl rand -base64 32`) and **back it up**.
+  Without it the service starts, but the admin panel cannot save Razorpay keys. If it is lost, re-enter the keys.
+* Keep `BOOKING_AUTO_CONFIRM=false`.
+* Then, in the admin panel: save the Razorpay keys (Payment Gateway) and choose the payment mode. In the
+  Razorpay dashboard add the webhook `https://<api host>/api/payments/webhook` (events `payment.captured`,
+  `payment.failed`, `order.paid`) with the same webhook secret.
+
 ## Troubleshooting
 
 | Symptom | Fix |
