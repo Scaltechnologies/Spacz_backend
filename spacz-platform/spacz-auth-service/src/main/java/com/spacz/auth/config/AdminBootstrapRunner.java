@@ -24,7 +24,7 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class AdminBootstrapRunner implements ApplicationRunner {
 
-    private static final int MIN_ADMIN_PASSWORD_LENGTH = 12;
+    private static final int MIN_ADMIN_PASSWORD_LENGTH = 6; // TEMPORARY: lowered for the default dev admin (123456). Raise back to 12 before go-live.
 
     private final AuthProperties authProperties;
     private final UserAccountRepository accountRepository;

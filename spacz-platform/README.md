@@ -53,7 +53,7 @@ All of them are in [.env.example](.env.example):
 | `JWT_SECRET`, `JWT_ISSUER` | all + gateway | HS256 signing key (≥ 32 chars) and issuer |
 | `INTERNAL_API_KEY` | all | service-to-service key for `/internal/**` |
 | `POSTGRES_PASSWORD`, `AUTH_DB_PASSWORD`, `USER_DB_PASSWORD`, `STUDYHALL_DB_PASSWORD`, `ADMIN_DB_PASSWORD`, `NOTIFICATION_DB_PASSWORD` | postgres + services | one login role per service database |
-| `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | auth | first admin (password ≥ 12 chars) |
+| `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | auth | first admin (password ≥ 6 chars; default `spacz@admin.com` / `123456`) |
 | `OTP_SMS_PROVIDER`, `OTP_EXPOSE_CODE`, `OTP_DEFAULT_COUNTRY_CODE` | auth | phone OTP (`log` provider, dev exposure, `+91`) |
 | `CORS_ALLOWED_ORIGINS` | gateway | frontend origins |
 | `STUDYHALL_APPROVAL_REQUIRED`, `BOOKING_AUTO_CONFIRM`, `BOOKING_HOLD_DURATION`, `BUSINESS_TIME_ZONE` | studyhall | business rules |
