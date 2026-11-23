@@ -108,8 +108,9 @@ services:
       OTP_SMS_PROVIDER: ${OTP_SMS_PROVIDER:-log}
       OTP_EXPOSE_CODE: ${OTP_EXPOSE_CODE:-false}
       OTP_DEFAULT_COUNTRY_CODE: ${OTP_DEFAULT_COUNTRY_CODE:-+91}
-      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      # TEMPORARY default admin (created on start if missing). Change the password in the console, then remove these.
+      BOOTSTRAP_ADMIN_EMAIL: spacz@admin.com
+      BOOTSTRAP_ADMIN_PASSWORD: "123456"
     depends_on:
       postgres:
         condition: service_healthy
