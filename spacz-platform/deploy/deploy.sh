@@ -19,14 +19,28 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# Settings added after the first deploy. Checked up front so a missing one stops the deploy before
-# anything changes, with a clear message (instead of a compose error halfway through).
-for key in NOTIFICATION_DB_PASSWORD; do
-  if ! grep -qE "^${key}=.+" "$ENV_FILE"; then
-    echo "Missing $key in $ENV_FILE - add it (see deploy/.env.production.example). Nothing was changed." >&2
+# Settings added after the first deploy. A missing or empty one is generated once and saved to .env,
+# so a server set up before the setting existed keeps deploying. Only safe for values nothing depends
+# on yet: NOTIFICATION_DB_PASSWORD is applied when its database is first created (init-databases.sh),
+# and ADMIN_SECRETS_ENCRYPTION_KEY only encrypts payment secrets saved after it exists.
+# Back up .env after the first such deploy (the encryption key cannot be recovered).
+ensure_setting() {  # ensure_setting <KEY> <generator command...>
+  local key="$1"; shift
+  if grep -qE "^${key}=.+" "$ENV_FILE"; then return 0; fi
+  local value
+  value="$("$@")"
+  if [[ -z "$value" ]]; then
+    echo "Could not generate $key - add it to $ENV_FILE by hand. Nothing was changed." >&2
     exit 1
   fi
-done
+  sed -i "/^${key}=\$/d" "$ENV_FILE"
+  printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  echo "==> Generated $key and saved it to $ENV_FILE (back this file up)"
+}
+gen_password() { od -An -tx1 -N24 /dev/urandom | tr -d ' \n'; }
+gen_aes_key() { head -c 32 /dev/urandom | base64 -w0; }
+ensure_setting NOTIFICATION_DB_PASSWORD gen_password
+ensure_setting ADMIN_SECRETS_ENCRYPTION_KEY gen_aes_key
 
 # Services added after earlier builds. A build from before a service existed has no image for it, so
 # deploying or rolling back to such a build starts the stack without that service.
