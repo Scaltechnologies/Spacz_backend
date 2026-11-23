@@ -77,6 +77,10 @@ services:
       ADMIN_SERVICE_URL: http://admin-service:8084
       STUDYHALL_APPROVAL_REQUIRED: ${STUDYHALL_APPROVAL_REQUIRED:-true}
       BOOKING_AUTO_CONFIRM: ${BOOKING_AUTO_CONFIRM:-false}
+      # Optional Razorpay fallback; normally an ADMIN saves the keys in the admin panel (docs/PAYMENTS.md).
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
       BOOKING_HOLD_DURATION: ${BOOKING_HOLD_DURATION:-15m}
       BUSINESS_TIME_ZONE: ${BUSINESS_TIME_ZONE:-Asia/Kolkata}
       HALL_IMAGES_DIR: /data/hall-images
@@ -122,6 +126,8 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/spacz_admin
       DB_USERNAME: spacz_admin
       DB_PASSWORD: ${ADMIN_DB_PASSWORD}
+      # Encrypts payment gateway secrets at rest (openssl rand -base64 32). Back it up.
+      ADMIN_SECRETS_ENCRYPTION_KEY: ${ADMIN_SECRETS_ENCRYPTION_KEY:-}
       NOTIFICATION_SERVICE_URL: http://notification-service:8085
       AUTH_SERVICE_URL: http://auth-service:8081
       USER_SERVICE_URL: http://user-service:8082

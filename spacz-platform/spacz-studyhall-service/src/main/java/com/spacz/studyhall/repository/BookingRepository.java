@@ -47,13 +47,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
                               @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate,
                               @Param("now") Instant now);
 
-    /** Releases PENDING holds on this seat whose hold time has passed. */
+    /** PENDING holds on this seat whose hold time has passed. */
+    @Query("select b.id from Booking b where b.seat.id = :seatId and b.status = :pending and b.holdExpiresAt <= :now")
+    List<Long> findStaleHoldIds(@Param("seatId") Long seatId, @Param("now") Instant now,
+                                @Param("pending") BookingStatus pending);
+
+    /** Expires one hold if it is still a stale PENDING hold. Returns 1 if this call changed it, else 0. */
     @Modifying(flushAutomatically = true)
     @Query("""
             update Booking b set b.status = :expired, b.updatedAt = :now, b.version = b.version + 1
-            where b.seat.id = :seatId and b.status = :pending and b.holdExpiresAt <= :now""")
-    int expireStaleHolds(@Param("seatId") Long seatId, @Param("now") Instant now,
-                         @Param("pending") BookingStatus pending, @Param("expired") BookingStatus expired);
+            where b.id = :id and b.status = :pending and b.holdExpiresAt <= :now""")
+    int expireIfStale(@Param("id") Long id, @Param("now") Instant now,
+                      @Param("pending") BookingStatus pending, @Param("expired") BookingStatus expired);
 
     /** Seats in the hall occupied by a CONFIRMED booking or a live PENDING hold overlapping [start, end]. */
     @Query("""

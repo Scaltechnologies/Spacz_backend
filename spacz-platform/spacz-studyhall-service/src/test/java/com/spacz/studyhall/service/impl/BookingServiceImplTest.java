@@ -121,7 +121,7 @@ class BookingServiceImplTest {
         assertThat(response.totalPrice()).isEqualByComparingTo("450.00");
         assertThat(response.holdExpiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(15)));
         assertThat(response.bookingReference()).startsWith("SPZ-");
-        verify(bookingRepository).expireStaleHolds(7L, NOW, BookingStatus.PENDING, BookingStatus.EXPIRED);
+        verify(bookingRepository).findStaleHoldIds(7L, NOW, BookingStatus.PENDING);
         verify(enrollmentService, never()).recordConfirmedBooking(any());
     }
 
@@ -231,7 +231,7 @@ class BookingServiceImplTest {
                 TODAY.plusDays(1), new BigDecimal("150.00"), NOW.minusSeconds(1));
         when(bookingRepository.findDetailed(1L)).thenReturn(Optional.of(booking));
 
-        assertThatThrownBy(() -> service(false).confirm(USER_ID, 1L))
+        assertThatThrownBy(() -> service(false).confirmByAdmin(99L, 1L))
                 .isInstanceOf(BusinessRuleException.class)
                 .extracting("errorCode").isEqualTo("BOOKING_HOLD_EXPIRED");
     }

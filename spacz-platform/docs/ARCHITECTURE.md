@@ -173,7 +173,8 @@ Seating     GET /{id}/seats (public seat map) · POST /{id}/seats · PUT|DELETE 
             GET|POST /{id}/blocks · PUT|DELETE /{id}/blocks/{blockId}
 Students    GET|POST /{id}/enrollments · PATCH /{id}/enrollments/{eid} · GET /{id}/bookings
 Catalogs    GET /api/programs[/{id}] · GET /api/amenities (public);  POST|PUT|DELETE (ADMIN), GET /all (ADMIN)
-Bookings    POST /api/bookings · GET /api/bookings/me · GET /{id} · POST /{id}/confirm|cancel
+Bookings    POST /api/bookings · GET /api/bookings/me · GET /{id} · POST /{id}/cancel · POST /{id}/confirm (ADMIN)
+Payments    GET /api/payments/mode · POST /api/payments · GET /{id} · POST /{id}/verify|cancel|retry · webhook · pay-at-hall/** (docs/PAYMENTS.md)
 Legacy      /api/owners · /api/properties · /api/blocks · /api/seats · /amenities · /images   (VENDOR)
 internal:   /internal/vendors[/{id}[/status]] · /internal/studyhalls[/{id}[/status]] · /internal/bookings
             /internal/enrollments?userId= · /internal/programs/lookup?ids= · /internal/stats
@@ -242,7 +243,9 @@ it read-only.
 6. The booking is saved as `PENDING` with a 15-minute hold. The PostgreSQL exclusion constraint
    `EXCLUDE USING gist (seat_id =, daterange &&) WHERE status IN (PENDING, CONFIRMED)` is the last
    line of defense.
-7. `confirm` → `CONFIRMED`, which creates or extends the student's **enrollment** in the hall.
+7. A successful **payment** (Razorpay, or Pay at Hall confirmed by the vendor) → `CONFIRMED`, in the same
+   transaction as the payment, which creates or extends the student's **enrollment** in the hall
+   ([PAYMENTS.md](PAYMENTS.md)). `POST /api/bookings/{id}/confirm` is an ADMIN override.
 8. A scheduled job expires holds, completes finished bookings and ends lapsed enrollments.
 
 **Walk-in students.** `POST /api/studyhalls/{id}/enrollments {guestName|userId, seatId?}`. The seat

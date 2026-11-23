@@ -155,7 +155,7 @@ public class StudyHallNotifier {
                 if (booking.getStatus() == BookingStatus.PENDING && booking.getHoldExpiresAt() != null) {
                     String until = TIME.format(booking.getHoldExpiresAt().atZone(bookingProperties.zone()));
                     student(booking, "BOOKING", "BOOKING_HELD", "Seat held for you",
-                            seat + " at " + hall.getName() + " is held until " + until + ". Confirm your booking to keep it.");
+                            seat + " at " + hall.getName() + " is held until " + until + ". Complete your payment to keep it.");
                 }
             }
             case "BOOKING_CONFIRMED" -> {

@@ -201,6 +201,28 @@ public class Booking {
         holdExpiresAt = null;
     }
 
+    /** Keeps the seat held while a payment session is open. Never shortens a hold. */
+    public void extendHold(Instant until) {
+        if (status == BookingStatus.PENDING && (holdExpiresAt == null || until.isAfter(holdExpiresAt))) {
+            holdExpiresAt = until;
+        }
+    }
+
+    /**
+     * Payment-driven confirmation. Unlike {@link #confirm}, it ignores hold expiry: money was already
+     * captured (or the vendor confirmed cash), and the caller ({@code BookingServiceImpl#confirmAfterPayment})
+     * has already verified, under the seat lock, that the seat is still free for these dates.
+     */
+    public void confirmAfterPayment(Instant now) {
+        if (status != BookingStatus.PENDING && status != BookingStatus.EXPIRED) {
+            throw new BusinessRuleException("INVALID_BOOKING_STATUS",
+                    "Only PENDING or EXPIRED bookings can be confirmed by payment (current: " + status + ")");
+        }
+        status = BookingStatus.CONFIRMED;
+        confirmedAt = now;
+        holdExpiresAt = null;
+    }
+
     public void cancel(String reason, Instant now, LocalDate today) {
         if (status != BookingStatus.PENDING && status != BookingStatus.CONFIRMED) {
             throw new BusinessRuleException("INVALID_BOOKING_STATUS", "Booking cannot be cancelled in status " + status);

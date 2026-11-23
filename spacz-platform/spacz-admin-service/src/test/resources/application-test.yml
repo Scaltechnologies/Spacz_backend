@@ -19,3 +19,5 @@ spacz:
       issuer: spacz-auth
     internal:
       api-key: test-internal-api-key-0123456789
+    # 32 zero-ish test bytes, base64 (tests only)
+    secrets-encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

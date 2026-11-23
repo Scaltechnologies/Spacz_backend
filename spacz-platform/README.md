@@ -20,7 +20,7 @@ until you sign off; see [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md).
 
 **Docs:** [Architecture](docs/ARCHITECTURE.md) (responsibilities, database ownership, ER diagram, API
 list, inter-service calls, flows, state machines) · [Frontend integration](docs/FRONTEND_INTEGRATION.md) ·
-[Notifications](docs/NOTIFICATIONS.md) · [Migration plan & outcome](docs/MIGRATION_PLAN.md) · [Postman collection](postman/SPACZ.postman_collection.json) ·
+[Notifications](docs/NOTIFICATIONS.md) · [Payments](docs/PAYMENTS.md) · [Migration plan & outcome](docs/MIGRATION_PLAN.md) · [Postman collection](postman/SPACZ.postman_collection.json) ·
 Swagger: http://localhost:8080/swagger-ui.html
 
 ## Quick start (Docker)
@@ -57,6 +57,8 @@ All of them are in [.env.example](.env.example):
 | `OTP_SMS_PROVIDER`, `OTP_EXPOSE_CODE`, `OTP_DEFAULT_COUNTRY_CODE` | auth | phone OTP (`log` provider, dev exposure, `+91`) |
 | `CORS_ALLOWED_ORIGINS` | gateway | frontend origins |
 | `STUDYHALL_APPROVAL_REQUIRED`, `BOOKING_AUTO_CONFIRM`, `BOOKING_HOLD_DURATION`, `BUSINESS_TIME_ZONE` | studyhall | business rules |
+| `ADMIN_SECRETS_ENCRYPTION_KEY` | admin | AES-256 key (base64 of 32 bytes) encrypting the Razorpay secrets saved in the admin panel. Back it up |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | studyhall | optional fallback; normally saved by an ADMIN in the admin panel ([payments](docs/PAYMENTS.md)) |
 | `FCM_CREDENTIALS_BASE64` | notification | SPACZ Firebase service-account JSON (base64); empty = push disabled, in-app only |
 | `*_HOST_PORT` | compose | published ports |
 
@@ -127,8 +129,9 @@ spacz-platform/
 ## Known limitations / next steps
 
 * **SMS:** only the `log` sender exists. Implement `SmsSender` for your SMS gateway (MSG91, Twilio …).
-* **Payments** are not integrated: `POST /api/bookings/{id}/confirm` is the payment-success hook
-  (`BOOKING_AUTO_CONFIRM=true` skips the hold).
+* **Payments** ([docs](docs/PAYMENTS.md)): Razorpay online checkout and Pay at Hall. A booking is confirmed only
+  by its payment; `POST /api/bookings/{id}/confirm` is an ADMIN override. Refunds after a *confirmed* booking is
+  cancelled are a business decision and not automated.
 * **Images** are URLs; upload files to object storage from the frontend.
 * Audit events, activity events and notifications are delivered asynchronously and best effort (notifications retry briefly). Use an outbox + broker if
   they must never be lost.

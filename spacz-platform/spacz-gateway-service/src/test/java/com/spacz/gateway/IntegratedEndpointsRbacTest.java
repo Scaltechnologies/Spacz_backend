@@ -63,6 +63,38 @@ class IntegratedEndpointsRbacTest {
             new Case(HttpMethod.DELETE, "/api/studyhalls/3/images/9", VENDOR),
             // studyhall-service: price quote is a student action
             new Case(HttpMethod.POST, "/api/bookings/quote", USER),
+            // studyhall-service: bookings are confirmed by payment; the manual confirm is an ADMIN override
+            new Case(HttpMethod.POST, "/api/bookings/7/confirm", ADMIN),
+            // studyhall-service: payments (the Razorpay webhook is HMAC-authenticated, no token)
+            new Case(HttpMethod.POST, "/api/payments/webhook", PUBLIC),
+            new Case(HttpMethod.GET, "/api/payments/mode", SIGNED_IN),
+            new Case(HttpMethod.POST, "/api/payments", USER_OR_ADMIN),
+            new Case(HttpMethod.GET, "/api/payments/5", USER_OR_ADMIN),
+            new Case(HttpMethod.GET, "/api/payments/booking/7", USER_OR_ADMIN),
+            new Case(HttpMethod.POST, "/api/payments/5/verify", USER_OR_ADMIN),
+            new Case(HttpMethod.POST, "/api/payments/5/cancel", USER_OR_ADMIN),
+            new Case(HttpMethod.POST, "/api/payments/5/retry", USER_OR_ADMIN),
+            new Case(HttpMethod.POST, "/api/payments/pay-at-hall/verify-qr", VENDOR),
+            new Case(HttpMethod.POST, "/api/payments/pay-at-hall/verify-code", VENDOR),
+            new Case(HttpMethod.POST, "/api/payments/pay-at-hall/5/confirm", VENDOR),
+            new Case(HttpMethod.GET, "/api/payments/pay-at-hall/pending", VENDOR),
+            new Case(HttpMethod.GET, "/api/payments/pay-at-hall/history", VENDOR),
+            // studyhall-service: history (booking history is checked per booking by studyhall-service)
+            new Case(HttpMethod.GET, "/api/payments/history", USER_OR_ADMIN),
+            new Case(HttpMethod.GET, "/api/payments/transactions", USER_OR_ADMIN),
+            new Case(HttpMethod.GET, "/api/payments/transactions/5", USER_OR_ADMIN),
+            new Case(HttpMethod.GET, "/api/vendors/me/transactions", VENDOR),
+            new Case(HttpMethod.GET, "/api/vendors/me/transactions/summary", VENDOR),
+            new Case(HttpMethod.GET, "/api/bookings/7/history", SIGNED_IN),
+            // admin-service: payment settings
+            new Case(HttpMethod.GET, "/api/admin/payment-gateway/razorpay", ADMIN),
+            new Case(HttpMethod.PUT, "/api/admin/payment-gateway/razorpay", ADMIN),
+            new Case(HttpMethod.PATCH, "/api/admin/settings/payment-mode", ADMIN),
+            new Case(HttpMethod.PATCH, "/api/admin/vendors/3/pay-at-hall", ADMIN),
+            new Case(HttpMethod.GET, "/api/admin/payments/5/audit-events", ADMIN),
+            new Case(HttpMethod.GET, "/api/admin/transactions", ADMIN),
+            new Case(HttpMethod.GET, "/api/admin/transactions/summary", ADMIN),
+            new Case(HttpMethod.GET, "/api/admin/bookings/7/history", ADMIN),
             // admin-service: student content
             new Case(HttpMethod.GET, "/api/offers", PUBLIC),
             new Case(HttpMethod.GET, "/api/notifications", SIGNED_IN),

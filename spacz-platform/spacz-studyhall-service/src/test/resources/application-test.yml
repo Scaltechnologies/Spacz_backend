@@ -27,3 +27,9 @@ spacz:
       issuer: spacz-auth
     internal:
       api-key: test-internal-api-key-0123456789
+  # Background sweeps would race tests that move timestamps into the past; tests call them directly.
+  booking:
+    lifecycle-initial-delay-ms: 3600000
+  payment:
+    jobs:
+      initial-delay-ms: 3600000

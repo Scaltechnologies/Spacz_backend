@@ -154,7 +154,25 @@ check('overlapping booking rejected (409 SEAT_UNAVAILABLE)', clash.status === 40
 const monthly = (await call('POST', '/api/bookings', { token: oTok, expect: 201, body: {
   studyHallId: hall.id, seatId: seat2.id, plan: 'MONTHLY', startDate: start, months: 2 } })).json;
 check('monthly booking priced at the block monthly rate (2 x 2500)', Number(monthly.totalPrice) === 5000 && monthly.units === 2);
-await call('POST', `/api/bookings/${booking.id}/confirm`, { token: sTok, expect: 200 });
+// Payment: students can't self-confirm; Pay at Hall needs no Razorpay keys (student shows the QR, the
+// vendor scans it and confirms the cash/UPI was received at the counter).
+await call('POST', `/api/bookings/${booking.id}/confirm`, { token: sTok, expect: 403 });
+const mode = (await call('GET', '/api/payments/mode', { token: sTok, expect: 200 })).json;
+check('payment mode is readable by the app', ['ONLINE_ONLY', 'PAY_AT_HALL_ONLY', 'BOTH'].includes(mode.paymentMode));
+const payAtHall = (await call('POST', '/api/payments', { token: sTok, expect: 201, body: {
+  bookingId: booking.id, paymentMethod: 'PAY_AT_HALL' } })).json;
+check('Pay at Hall order returns its QR and 6-digit code once, for the server-computed amount',
+  payAtHall.status === 'PENDING' && payAtHall.qrPayload.startsWith('SPACZ-PAY-HALL:')
+  && /^\d{6}$/.test(payAtHall.verificationCode) && Number(payAtHall.amount) === Number(booking.totalPrice));
+const reread = (await call('GET', `/api/payments/${payAtHall.paymentId}`, { token: sTok, expect: 200 })).json;
+check('the QR/code are never returned again', reread.qrPayload === undefined && reread.verificationCode === undefined);
+const scanned = (await call('POST', '/api/payments/pay-at-hall/verify-qr', { token: vTok, expect: 200, body: {
+  qrToken: payAtHall.qrPayload } })).json;
+check('vendor scan verifies but does not confirm', scanned.status === 'AWAITING_VENDOR_CONFIRMATION');
+const paid = (await call('POST', `/api/payments/pay-at-hall/${payAtHall.paymentId}/confirm`, { token: vTok, expect: 200 })).json;
+check('vendor confirmation marks the payment SUCCESS', paid.status === 'SUCCESS');
+check('booking confirmed by its payment',
+  (await call('GET', `/api/bookings/${booking.id}`, { token: sTok, expect: 200 })).json.status === 'CONFIRMED');
 const enrollments = (await call('GET', '/api/users/me/enrollments', { token: sTok, expect: 200 })).json;
 check('confirmed booking enrolled the student in the hall (user → studyhall)',
   enrollments.some(e => e.studyHallId === hall.id && e.status === 'ACTIVE'));

@@ -61,6 +61,7 @@ public class LegacyImportServiceImpl implements LegacyImportService {
     private final BookingRepository bookingRepository;
     private final EnrollmentService enrollmentService;
     private final Clock clock;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     @Override
     @Transactional
@@ -174,6 +175,8 @@ public class LegacyImportServiceImpl implements LegacyImportService {
         Booking booking = bookingRepository.saveAndFlush(Booking.imported(BookingServiceImpl.newReference(),
                 request.legacyBookingId(), request.userId(), seat, request.startDate(), request.endDate(), price,
                 clock.instant()));
+        events.publishEvent(com.spacz.studyhall.history.BookingStatusChangedEvent.of(booking.getId(), null,
+                booking.getStatus(), com.spacz.studyhall.history.ActorType.SYSTEM, null, "Imported from the legacy system"));
         enrollmentService.recordConfirmedBooking(booking);
         return new ImportBookingResult(request.legacyBookingId(), booking.getId(), "CREATED");
     }

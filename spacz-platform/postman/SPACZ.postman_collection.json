@@ -1888,14 +1888,14 @@
           }
         },
         {
-          "name": "Confirm booking (after payment)",
+          "name": "Student cannot self-confirm a booking → 403",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Confirm booking (after payment): HTTP 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"Self-confirm is ADMIN only: HTTP 403\", () => pm.response.to.have.status(403));"
                 ]
               }
             }
@@ -1917,6 +1917,171 @@
                 "api",
                 "bookings",
                 "{{bookingId}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Payment mode",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Payment mode: HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Known mode\", () => pm.expect([\"ONLINE_ONLY\", \"PAY_AT_HALL_ONLY\", \"BOTH\"]).to.include(pm.response.json().paymentMode));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/mode",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "mode"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pay at Hall: create payment (QR + code returned once)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Create payment: HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"QR and 6-digit code\", () => { pm.expect(p.qrPayload).to.match(/^SPACZ-PAY-HALL:/); pm.expect(p.verificationCode).to.match(/^\\d{6}$/); });",
+                  "pm.collectionVariables.set(\"paymentId\", p.paymentId);",
+                  "pm.collectionVariables.set(\"qrPayload\", p.qrPayload);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": {{bookingId}},\n  \"paymentMethod\": \"PAY_AT_HALL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Vendor: scan the student's QR (verifies, does not confirm)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Verify QR: HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Awaiting confirmation\", () => pm.expect(pm.response.json().status).to.eql(\"AWAITING_VENDOR_CONFIRMATION\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qrToken\": \"{{qrPayload}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/pay-at-hall/verify-qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "pay-at-hall",
+                "verify-qr"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Vendor: confirm payment received (confirms the booking)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Confirm: HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Payment SUCCESS\", () => pm.expect(pm.response.json().status).to.eql(\"SUCCESS\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/pay-at-hall/{{paymentId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "pay-at-hall",
+                "{{paymentId}}",
                 "confirm"
               ]
             }
