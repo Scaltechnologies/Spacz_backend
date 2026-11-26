@@ -7,5 +7,6 @@ public record VendorProfileDto(Long id, Long vendorId, String businessName, Stri
                                String phone, String addressLine, String city, String state, String pincode,
                                String gstNumber, String description, String logoUrl, String status,
                                String statusReason, List<String> missingForSubmission, Instant submittedAt,
-                               Instant approvedAt, Instant createdAt, Instant updatedAt) {
+                               Instant approvedAt, Instant createdAt, Instant updatedAt,
+                               Boolean payAtHallEnabled) {
 }

@@ -17,7 +17,7 @@ In the tables below:
 
 - **Local development:** browser calls are accepted from `http://localhost:3000` and `http://localhost:5173` only. Any other address, including `localhost:4200`, is blocked until the backend team adds it. Send them the live console address as well.
 - **Phone OTP:** SMS isn't connected yet, so codes don't reach phones or appear in API responses. Use email and password sign-up for testing.
-- **Hall photos:** there is no file upload route. Upload the file elsewhere first, then send its URL.
+- **Hall photos:** upload JPEG/PNG files (max ~1.8 MB) with `POST /api/studyhalls/{id}/images/upload`; responses carry absolute URLs. Photos added by URL must be `https://`.
 - **Production data:** there is no separate test environment, so test accounts and data are real records.
 - **Test coverage:** the routes that need a login were checked without a token and correctly refused it (`401`). Complete logged-in flows haven't been run against production yet, so report any surprises with the `correlationId`.
 
@@ -75,9 +75,9 @@ Passwords must be 8-72 characters with at least one letter and one digit.
 
 | Method | Path | Access | Purpose | Body or query |
 |---|---|---|---|---|
-| POST | `/api/studyhalls` | Vendor | Create a hall as `DRAFT`. | Body: `name*`, `description`, `addressLine*`, `city*`, `state*`, `pincode`, `latitude`, `longitude`, `contactPhone`, `contactEmail`, `pricePerDay*`, `pricePerMonth`, `rules`, `openingTime*`, `closingTime*` |
+| POST | `/api/studyhalls` | Vendor | Create a hall as `DRAFT`. | Body: `name*`, `description`, `addressLine*`, `city*`, `state*`, `pincode`, `latitude`, `longitude`, `contactPhone`, `alternatePhone`, `contactEmail`, `pricePerDay*`, `pricePerMonth`, `rules`, `openingTime*`, `closingTime*` |
 | GET | `/api/studyhalls/{id}` | Public | Hall details. Send the token to see your own hall in any status; without it, only live halls are returned. | |
-| PUT | `/api/studyhalls/{id}` | Vendor | Update hall details. | Body: `name*`, `description`, `addressLine*`, `city*`, `state*`, `pincode`, `latitude`, `longitude`, `contactPhone`, `contactEmail`, `pricePerDay*`, `pricePerMonth`, `rules` |
+| PUT | `/api/studyhalls/{id}` | Vendor | Update hall details. | Body: `name*`, `description`, `addressLine*`, `city*`, `state*`, `pincode`, `latitude`, `longitude`, `contactPhone`, `alternatePhone` (null clears it), `contactEmail`, `pricePerDay*`, `pricePerMonth`, `rules` |
 | DELETE | `/api/studyhalls/{id}` | Vendor | Delete a hall that was never approved and has no bookings. Returns `204`. | |
 | POST | `/api/studyhalls/{id}/submit` | Vendor | Send a hall for approval. Moves `DRAFT` or `REJECTED` to `PENDING_APPROVAL`. | |
 | PATCH | `/api/studyhalls/{id}/status` | Vendor | Hide or show an approved hall. | Body: `status*` (`"ACTIVE"` or `"INACTIVE"`) |
@@ -90,7 +90,10 @@ Each route returns the updated hall.
 
 | Method | Path | Access | Purpose | Body |
 |---|---|---|---|---|
-| POST | `/api/studyhalls/{id}/images` | Vendor | Add a photo by URL. | `url*`, `caption`, `cover`, `displayOrder` |
+| POST | `/api/studyhalls/{id}/images` | Vendor | Add a photo by URL (`https://` only). | `url*`, `caption`, `cover`, `displayOrder` |
+| POST | `/api/studyhalls/{id}/images/upload` | Vendor | Upload a photo (multipart part `file`, JPEG/PNG). | Query: `caption`, `cover` |
+| PATCH | `/api/studyhalls/{id}/images/{imageId}` | Vendor | Make a photo the cover and/or change its caption. | `cover`, `caption` |
+| PUT | `/api/studyhalls/{id}/images/order` | Vendor | Reorder photos. `422 INVALID_IMAGE_ORDER` unless every photo id is listed once. | `imageIds*` |
 | DELETE | `/api/studyhalls/{id}/images/{imageId}` | Vendor | Remove a photo. | |
 | POST | `/api/studyhalls/{id}/amenities` | Vendor | Add hall-wide amenities. | `amenityIds*` |
 | DELETE | `/api/studyhalls/{id}/amenities/{amenityId}` | Vendor | Remove an amenity. | |
@@ -109,6 +112,7 @@ Each route returns the updated hall.
 | POST | `/api/studyhalls/{id}/seats` | Vendor | Add a seat in an empty cell of a block. | Body: `blockId*`, `seatNumber*`, `row*`, `column*`, `seatType*`, `pricePerDay`, `pricePerMonth` |
 | PUT | `/api/studyhalls/{id}/seats/{seatId}` | Vendor | Update a seat. | Body: `seatNumber*`, `seatType*`, `status*`, `pricePerDay`, `pricePerMonth` |
 | DELETE | `/api/studyhalls/{id}/seats/{seatId}` | Vendor | Delete a seat that has never been booked. Returns `204`. | |
+| POST | `/api/studyhalls/{id}/layout/batch` | Vendor | Save a whole seating-plan edit in ONE transaction: every operation applies or none does. A failure names the step (`Layout not saved, nothing was changed. Step N ...`). | Body: `operations*`: `[{type*, ref, floorId, floorRef, blockId, blockRef, seatId, floor, createBlock, updateBlock, layout, seat}]`; `type`: `DELETE_SEAT`, `DELETE_BLOCK`, `DELETE_FLOOR`, `CREATE_FLOOR`, `UPDATE_FLOOR`, `CREATE_BLOCK`, `UPDATE_BLOCK`, `UPDATE_LAYOUT`, `CREATE_SEAT`. Returns `{applied, floorIds, blockIds}` (new ids by `ref`). |
 
 ## Students and bookings
 

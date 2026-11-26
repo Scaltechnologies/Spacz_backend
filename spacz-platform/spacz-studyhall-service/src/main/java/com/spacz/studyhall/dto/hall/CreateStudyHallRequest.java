@@ -36,7 +36,18 @@ public record CreateStudyHallRequest(
         @DecimalMin(value = "0.0", inclusive = false) @Digits(integer = 8, fraction = 2) BigDecimal pricePerMonth,
         @Size(max = 4000) String rules,
         @Schema(example = "06:00") @NotNull LocalTime openingTime,
-        @Schema(example = "22:00") @NotNull LocalTime closingTime) {
+        @Schema(example = "22:00") @NotNull LocalTime closingTime,
+        @Schema(example = "+919812345679", description = "Optional second contact number")
+        @Pattern(regexp = ValidationPatterns.PHONE, message = ValidationPatterns.PHONE_MESSAGE) String alternatePhone) {
+
+    /** Without an alternate phone (callers that predate it). */
+    public CreateStudyHallRequest(String name, String description, String addressLine, String city, String state,
+                                  String pincode, Double latitude, Double longitude, String contactPhone,
+                                  String contactEmail, BigDecimal pricePerDay, BigDecimal pricePerMonth, String rules,
+                                  LocalTime openingTime, LocalTime closingTime) {
+        this(name, description, addressLine, city, state, pincode, latitude, longitude, contactPhone, contactEmail,
+                pricePerDay, pricePerMonth, rules, openingTime, closingTime, null);
+    }
 
     @AssertTrue(message = "closingTime must be after openingTime")
     @Schema(hidden = true)

@@ -26,4 +26,11 @@ public interface AuthService {
     AccountResponse getAccount(Long accountId);
 
     void changePassword(Long accountId, ChangePasswordRequest request);
+
+    /**
+     * A student closes their own account: personal data is erased in user-service, the account is DISABLED,
+     * its email and phone are released (the number can register again) and every session is revoked.
+     * Bookings and payments stay as anonymous financial records. Students only (403 for vendors and admins).
+     */
+    void deleteOwnAccount(Long accountId);
 }

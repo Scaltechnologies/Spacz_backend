@@ -4,6 +4,7 @@ import com.spacz.studyhall.config.OpenApiConfig;
 import com.spacz.studyhall.dto.PageResponse;
 import com.spacz.studyhall.dto.booking.BookingQuoteResponse;
 import com.spacz.studyhall.dto.booking.BookingResponse;
+import com.spacz.studyhall.dto.booking.AdminConfirmBookingRequest;
 import com.spacz.studyhall.dto.booking.CancelBookingRequest;
 import com.spacz.studyhall.dto.booking.CreateBookingRequest;
 import com.spacz.studyhall.entity.BookingStatus;
@@ -104,8 +105,10 @@ public class BookingController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "ADMIN only: confirm a PENDING booking without an in-app payment (manual override)",
             description = "Students pay via POST /api/payments; the booking is confirmed when the payment succeeds.")
-    public BookingResponse confirm(@AuthenticationPrincipal AuthenticatedUser admin, @PathVariable Long id) {
-        BookingResponse response = bookingService.confirmByAdmin(admin.userId(), id);
+    public BookingResponse confirm(@AuthenticationPrincipal AuthenticatedUser admin, @PathVariable Long id,
+                                   @Valid @RequestBody(required = false) AdminConfirmBookingRequest request) {
+        BookingResponse response = bookingService.confirmByAdmin(admin.userId(), id,
+                request == null ? null : request.reason());
         log.info("Admin {} manually confirmed booking {}", admin.userId(), id);
         return response;
     }

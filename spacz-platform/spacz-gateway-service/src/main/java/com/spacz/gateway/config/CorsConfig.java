@@ -20,7 +20,8 @@ public class CorsConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(properties.corsAllowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Correlation-Id"));
+        // Idempotency-Key: POST /api/payments needs it, so browser apps must be allowed to send it.
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Correlation-Id", "Idempotency-Key"));
         config.setExposedHeaders(List.of("X-Correlation-Id", "WWW-Authenticate"));
         config.setAllowCredentials(true);
         config.setMaxAge(Duration.ofHours(1));

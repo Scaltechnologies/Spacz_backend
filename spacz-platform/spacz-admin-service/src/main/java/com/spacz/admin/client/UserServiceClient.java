@@ -32,6 +32,15 @@ public class UserServiceClient extends BaseServiceClient {
                 .body(UserProfileDto.class));
     }
 
+    /** Student summaries (name, email, phone, city) for up to 100 user IDs; unknown IDs are omitted. */
+    public JsonNode summaries(java.util.Collection<Long> ids) {
+        return execute(() -> restClient.get()
+                .uri(uri -> uri.path("/internal/users").queryParam("ids", ids.toArray()).build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .body(JsonNode.class));
+    }
+
     /** A student's exam / course choices, passed through. */
     public JsonNode programs(Long userId) {
         return execute(() -> restClient.get()

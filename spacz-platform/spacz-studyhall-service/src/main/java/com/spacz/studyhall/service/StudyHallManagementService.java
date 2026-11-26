@@ -3,6 +3,7 @@ package com.spacz.studyhall.service;
 import com.spacz.studyhall.dto.PageResponse;
 import com.spacz.studyhall.dto.hall.CreateStudyHallRequest;
 import com.spacz.studyhall.dto.hall.ImageRequest;
+import com.spacz.studyhall.dto.hall.ImageUpdateRequest;
 import com.spacz.studyhall.dto.hall.OperatingHoursRequest;
 import com.spacz.studyhall.dto.hall.StudyHallDetailResponse;
 import com.spacz.studyhall.dto.hall.StudyHallSummaryResponse;
@@ -35,6 +36,12 @@ public interface StudyHallManagementService {
     StudyHallDetailResponse addImage(Long vendorId, Long studyHallId, ImageRequest request);
 
     StudyHallDetailResponse removeImage(Long vendorId, Long studyHallId, Long imageId);
+
+    /** Sets the cover and/or caption of one photo. */
+    StudyHallDetailResponse updateImage(Long vendorId, Long studyHallId, Long imageId, ImageUpdateRequest request);
+
+    /** Renumbers the photos in the given order; the list must hold every photo id of the hall exactly once. */
+    StudyHallDetailResponse reorderImages(Long vendorId, Long studyHallId, java.util.List<Long> imageIds);
 
     StudyHallDetailResponse addAmenities(Long vendorId, Long studyHallId, Set<Long> amenityIds);
 

@@ -31,7 +31,8 @@ public class StudyHallMapper {
         return new VendorProfileResponse(v.getId(), v.getVendorId(), v.getBusinessName(), v.getContactName(),
                 v.getEmail(), v.getPhone(), v.getAddressLine(), v.getCity(), v.getState(), v.getPincode(),
                 v.getGstNumber(), v.getDescription(), v.getLogoUrl(), v.getStatus(), v.getStatusReason(),
-                v.missingForSubmission(), v.getSubmittedAt(), v.getApprovedAt(), v.getCreatedAt(), v.getUpdatedAt());
+                v.missingForSubmission(), v.getSubmittedAt(), v.getApprovedAt(), v.getCreatedAt(), v.getUpdatedAt(),
+                v.isPayAtHallEnabled());
     }
 
     public VendorPublicResponse toPublic(VendorProfile v, long liveStudyHalls) {
@@ -88,7 +89,8 @@ public class StudyHallMapper {
                 h.getOperatingHours().stream().sorted(Comparator.comparing(OperatingHours::getDayOfWeek))
                         .map(this::toResponse).toList(),
                 h.getBlocks().stream().map(this::toSummary).toList(),
-                totalSeats, h.getSubmittedAt(), h.getApprovedAt(), h.getCreatedAt(), h.getUpdatedAt());
+                totalSeats, h.getSubmittedAt(), h.getApprovedAt(), h.getCreatedAt(), h.getUpdatedAt(),
+                h.getAlternatePhone());
     }
 
     private List<ProgramRef> programs(StudyHall h) {

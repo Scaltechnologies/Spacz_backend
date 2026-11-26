@@ -28,7 +28,17 @@ public record UpdateStudyHallRequest(
         @Email @Size(max = 254) String contactEmail,
         @NotNull @DecimalMin(value = "0.0", inclusive = false) @Digits(integer = 8, fraction = 2) BigDecimal pricePerDay,
         @DecimalMin(value = "0.0", inclusive = false) @Digits(integer = 8, fraction = 2) BigDecimal pricePerMonth,
-        @Size(max = 4000) String rules) {
+        @Size(max = 4000) String rules,
+        @Schema(description = "Optional second contact number; null clears it")
+        @Pattern(regexp = ValidationPatterns.PHONE, message = ValidationPatterns.PHONE_MESSAGE) String alternatePhone) {
+
+    /** Without an alternate phone (callers that predate it): clears it. */
+    public UpdateStudyHallRequest(String name, String description, String addressLine, String city, String state,
+                                  String pincode, Double latitude, Double longitude, String contactPhone,
+                                  String contactEmail, BigDecimal pricePerDay, BigDecimal pricePerMonth, String rules) {
+        this(name, description, addressLine, city, state, pincode, latitude, longitude, contactPhone, contactEmail,
+                pricePerDay, pricePerMonth, rules, null);
+    }
 
     @AssertTrue(message = "latitude and longitude must be provided together")
     @Schema(hidden = true)

@@ -14,5 +14,6 @@ public record StudyHallDetailResponse(Long id, Long vendorId, String vendorBusin
                                       List<ImageResponse> images, List<AmenityResponse> amenities,
                                       List<ProgramRef> programs, List<OperatingHoursResponse> operatingHours,
                                       List<BlockSummary> blocks, long totalSeats, Instant submittedAt,
-                                      Instant approvedAt, Instant createdAt, Instant updatedAt) {
+                                      Instant approvedAt, Instant createdAt, Instant updatedAt,
+                                      String alternatePhone) {
 }

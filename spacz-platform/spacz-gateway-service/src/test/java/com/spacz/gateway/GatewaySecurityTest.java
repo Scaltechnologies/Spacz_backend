@@ -193,6 +193,19 @@ class GatewaySecurityTest {
         assertThat(preflightFrom("https://evil.example").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void corsPreflightAllowsTheIdempotencyKeyUsedByPayments() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .options("http://gateway.local/api/payments")
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type,idempotency-key"));
+        new DefaultCorsProcessor().process(corsConfigurationSource.getCorsConfiguration(exchange), exchange);
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
+        assertThat(exchange.getResponse().getHeaders().getAccessControlAllowHeaders())
+                .anySatisfy(header -> assertThat(header).isEqualToIgnoringCase("idempotency-key"));
+    }
+
     /**
      * Applies the gateway's CORS configuration to a preflight request. (The test HTTP client sends
      * preflights without a resolvable host, so the processor is exercised directly here.)

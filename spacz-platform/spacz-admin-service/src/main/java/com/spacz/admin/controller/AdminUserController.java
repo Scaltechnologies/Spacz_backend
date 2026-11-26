@@ -1,7 +1,9 @@
 package com.spacz.admin.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.spacz.admin.client.UserServiceClient;
 import com.spacz.admin.client.dto.AccountDto;
+import com.spacz.admin.exception.BusinessRuleException;
 import com.spacz.admin.dto.AdminUserDetailResponse;
 import com.spacz.admin.dto.OptionalReasonRequest;
 import com.spacz.admin.dto.PageResponse;
@@ -27,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Set;
+
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
@@ -34,7 +38,22 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Admin - Users", description = "All accounts (students, vendors, admins)")
 public class AdminUserController {
 
+    private static final int MAX_SUMMARY_IDS = 100;
+
     private final UserAdminService userAdminService;
+    private final UserServiceClient userServiceClient;
+
+    @GetMapping("/summaries")
+    @Operation(summary = "Student names for a list of user IDs (max 100)",
+            description = "Batch lookup used to show names next to bookings, transactions and accounts. "
+                    + "Returns [{userId, firstName, lastName, email, phone, city}]; IDs without a student profile "
+                    + "(vendors, admins, unknown) are omitted.")
+    public JsonNode summaries(@Parameter(description = "Comma-separated user IDs") @RequestParam Set<Long> ids) {
+        if (ids.isEmpty() || ids.size() > MAX_SUMMARY_IDS) {
+            throw new BusinessRuleException("INVALID_IDS", "Give between 1 and " + MAX_SUMMARY_IDS + " user IDs");
+        }
+        return userServiceClient.summaries(ids);
+    }
 
     @GetMapping
     @Operation(summary = "Search accounts")

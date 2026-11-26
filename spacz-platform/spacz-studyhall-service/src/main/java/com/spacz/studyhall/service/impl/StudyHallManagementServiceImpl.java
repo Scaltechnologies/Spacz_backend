@@ -6,6 +6,7 @@ import com.spacz.studyhall.config.StudyHallProperties;
 import com.spacz.studyhall.dto.PageResponse;
 import com.spacz.studyhall.dto.hall.CreateStudyHallRequest;
 import com.spacz.studyhall.dto.hall.ImageRequest;
+import com.spacz.studyhall.dto.hall.ImageUpdateRequest;
 import com.spacz.studyhall.dto.hall.OperatingHoursRequest;
 import com.spacz.studyhall.dto.hall.StudyHallDetailResponse;
 import com.spacz.studyhall.dto.hall.StudyHallSummaryResponse;
@@ -81,7 +82,8 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
         StudyHall hall = StudyHall.draft(profile);
         applyDetails(hall, request.name(), request.description(), request.addressLine(), request.city(),
                 request.state(), request.pincode(), request.latitude(), request.longitude(), request.contactPhone(),
-                request.contactEmail(), request.pricePerDay(), request.pricePerMonth(), request.rules());
+                request.contactEmail(), request.pricePerDay(), request.pricePerMonth(), request.rules(),
+                request.alternatePhone());
         DefaultHours.seed(hall, request.openingTime(), request.closingTime());
         StudyHall saved = studyHallRepository.saveAndFlush(hall);
         auditEvents.record(vendor, "STUDY_HALL_CREATED", "STUDY_HALL", saved.getId(),
@@ -107,7 +109,8 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
         StudyHall hall = vendorAccess.writableHall(vendor.userId(), studyHallId);
         applyDetails(hall, request.name(), request.description(), request.addressLine(), request.city(),
                 request.state(), request.pincode(), request.latitude(), request.longitude(), request.contactPhone(),
-                request.contactEmail(), request.pricePerDay(), request.pricePerMonth(), request.rules());
+                request.contactEmail(), request.pricePerDay(), request.pricePerMonth(), request.rules(),
+                request.alternatePhone());
         auditEvents.record(vendor, "STUDY_HALL_UPDATED", "STUDY_HALL", studyHallId,
                 "Updated study hall '" + hall.getName() + "'");
         notifier.hallSaved(hall, false);
@@ -232,6 +235,39 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
 
     @Override
     @Transactional
+    public StudyHallDetailResponse updateImage(Long vendorId, Long studyHallId, Long imageId, ImageUpdateRequest request) {
+        StudyHall hall = vendorAccess.writableHall(vendorId, studyHallId);
+        StudyHallImage image = hall.getImages().stream().filter(i -> i.getId().equals(imageId)).findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Image", imageId));
+        if (Boolean.TRUE.equals(request.cover())) {
+            hall.getImages().forEach(i -> i.setCover(i == image));
+        }
+        if (request.caption() != null) {
+            image.setCaption(trimToNull(request.caption()));
+        }
+        return assembler.detail(studyHallRepository.saveAndFlush(hall));
+    }
+
+    @Override
+    @Transactional
+    public StudyHallDetailResponse reorderImages(Long vendorId, Long studyHallId, List<Long> imageIds) {
+        StudyHall hall = vendorAccess.writableHall(vendorId, studyHallId);
+        Map<Long, StudyHallImage> byId = new java.util.HashMap<>();
+        hall.getImages().forEach(i -> byId.put(i.getId(), i));
+        if (imageIds.size() != byId.size() || !byId.keySet().equals(new java.util.HashSet<>(imageIds))) {
+            throw new BusinessRuleException("INVALID_IMAGE_ORDER",
+                    "Send every photo of this hall exactly once. Reload the hall and try again.");
+        }
+        for (int i = 0; i < imageIds.size(); i++) {
+            byId.get(imageIds.get(i)).setDisplayOrder(i);
+        }
+        // @OrderBy applies only when the list is loaded: re-sort the loaded list so the response shows the new order
+        hall.getImages().sort(java.util.Comparator.comparingInt(StudyHallImage::getDisplayOrder));
+        return assembler.detail(studyHallRepository.saveAndFlush(hall));
+    }
+
+    @Override
+    @Transactional
     public StudyHallDetailResponse addAmenities(Long vendorId, Long studyHallId, Set<Long> amenityIds) {
         StudyHall hall = vendorAccess.writableHall(vendorId, studyHallId);
         hall.getAmenities().addAll(activeAmenities(amenityRepository, amenityIds));
@@ -291,7 +327,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
     private static void applyDetails(StudyHall hall, String name, String description, String addressLine, String city,
                                      String state, String pincode, Double latitude, Double longitude,
                                      String contactPhone, String contactEmail, BigDecimal pricePerDay,
-                                     BigDecimal pricePerMonth, String rules) {
+                                     BigDecimal pricePerMonth, String rules, String alternatePhone) {
         hall.setName(name.trim());
         hall.setDescription(trimToNull(description));
         hall.setAddressLine(addressLine.trim());
@@ -302,6 +338,7 @@ public class StudyHallManagementServiceImpl implements StudyHallManagementServic
         hall.setLongitude(longitude);
         hall.setContactPhone(trimToNull(contactPhone));
         hall.setContactEmail(trimToNull(contactEmail));
+        hall.setAlternatePhone(trimToNull(alternatePhone));
         hall.setPricePerDay(pricePerDay);
         hall.setPricePerMonth(pricePerMonth);
         hall.setRules(trimToNull(rules));

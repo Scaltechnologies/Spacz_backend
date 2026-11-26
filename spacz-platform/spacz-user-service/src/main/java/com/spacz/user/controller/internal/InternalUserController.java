@@ -8,6 +8,7 @@ import com.spacz.user.dto.UserProgramResponse;
 import com.spacz.user.dto.internal.CreateUserProfileRequest;
 import com.spacz.user.dto.internal.RecordActivityRequest;
 import com.spacz.user.dto.internal.UserSummaryResponse;
+import com.spacz.user.service.AccountErasureService;
 import com.spacz.user.service.ActivityService;
 import com.spacz.user.service.UserProfileService;
 import com.spacz.user.service.UserProgramService;
@@ -24,6 +25,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +49,7 @@ public class InternalUserController {
     private final UserProfileService profileService;
     private final UserProgramService programService;
     private final ActivityService activityService;
+    private final AccountErasureService erasureService;
 
     @PostMapping
     @Operation(summary = "Create a profile at registration (idempotent on userId)")
@@ -86,5 +89,12 @@ public class InternalUserController {
     @Operation(summary = "Append an activity (booking events from studyhall-service)")
     public ActivityResponse recordActivity(@PathVariable Long userId, @Valid @RequestBody RecordActivityRequest request) {
         return activityService.record(userId, request);
+    }
+
+    @DeleteMapping("/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Erase a student's personal data when they delete their account (auth-service; idempotent)")
+    public void erase(@PathVariable Long userId) {
+        erasureService.erase(userId);
     }
 }

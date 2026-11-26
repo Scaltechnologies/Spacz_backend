@@ -22,7 +22,12 @@ public interface BookingService {
      * ADMIN manual/offline override: confirms a PENDING booking without a payment (e.g. paid outside the
      * app). Students never confirm their own bookings; that happens only through a successful payment.
      */
-    BookingResponse confirmByAdmin(Long adminId, Long bookingId);
+    default BookingResponse confirmByAdmin(Long adminId, Long bookingId) {
+        return confirmByAdmin(adminId, bookingId, null);
+    }
+
+    /** ADMIN manual override; {@code reason} (optional) is stored in the booking's status history. */
+    BookingResponse confirmByAdmin(Long adminId, Long bookingId, String reason);
 
     /** Outcome of {@link #confirmAfterPayment}. */
     enum PaidConfirmation {

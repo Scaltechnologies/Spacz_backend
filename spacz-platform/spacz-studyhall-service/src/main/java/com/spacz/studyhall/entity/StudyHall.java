@@ -80,6 +80,9 @@ public class StudyHall {
     @Column(name = "contact_phone", length = 20)
     private String contactPhone;
 
+    @Column(name = "alternate_phone", length = 20)
+    private String alternatePhone;
+
     @Column(name = "contact_email", length = 254)
     private String contactEmail;
 

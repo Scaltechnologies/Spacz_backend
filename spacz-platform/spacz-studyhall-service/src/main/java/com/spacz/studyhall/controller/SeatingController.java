@@ -14,7 +14,10 @@ import com.spacz.studyhall.dto.seat.UpdateBlockRequest;
 import com.spacz.studyhall.dto.seat.UpdateLayoutRequest;
 import com.spacz.studyhall.dto.seat.UpdateSeatRequest;
 import com.spacz.studyhall.security.AuthenticatedUser;
+import com.spacz.studyhall.dto.seat.SeatingBatchRequest;
+import com.spacz.studyhall.dto.seat.SeatingBatchResponse;
 import com.spacz.studyhall.service.SeatingService;
+import com.spacz.studyhall.service.impl.SeatingBatchService;
 import com.spacz.studyhall.service.StudyHallQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -48,6 +51,7 @@ import java.util.List;
 public class SeatingController {
 
     private final SeatingService seatingService;
+    private final SeatingBatchService seatingBatchService;
     private final StudyHallQueryService queryService;
 
     @GetMapping("/seats")
@@ -105,6 +109,17 @@ public class SeatingController {
     public void deleteFloor(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long studyHallId,
                             @PathVariable Long floorId) {
         seatingService.deleteFloor(vendor.userId(), studyHallId, floorId);
+    }
+
+    @PostMapping("/layout/batch")
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Save a seating-plan edit atomically",
+            description = "Floors, blocks, layouts and seats in one transaction: all operations apply or none do. "
+                    + "Errors name the failing step.",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public SeatingBatchResponse batch(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long studyHallId,
+                                      @Valid @RequestBody SeatingBatchRequest request) {
+        return seatingBatchService.apply(vendor.userId(), studyHallId, request);
     }
 
     @PutMapping("/blocks/{blockId}/layout")

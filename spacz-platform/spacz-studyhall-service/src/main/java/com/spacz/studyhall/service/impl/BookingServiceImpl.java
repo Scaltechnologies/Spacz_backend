@@ -200,13 +200,15 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
-    public BookingResponse confirmByAdmin(Long adminId, Long bookingId) {
+    public BookingResponse confirmByAdmin(Long adminId, Long bookingId, String reason) {
         Booking booking = bookingRepository.findDetailed(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
         BookingStatus previous = booking.getStatus();
         booking.confirm(clock.instant());
         bookingRepository.saveAndFlush(booking);
-        recordStatus(booking, previous, ActorType.ADMIN, adminId, null, "Confirmed manually by an admin (no in-app payment)");
+        String note = reason == null || reason.isBlank() ? "" : ": " + reason.strip();
+        recordStatus(booking, previous, ActorType.ADMIN, adminId, null,
+                "Confirmed manually by an admin (no in-app payment)" + note);
         enrollmentService.recordConfirmedBooking(booking);
         log.info("Booking {} confirmed manually by an admin (no in-app payment)", booking.getBookingReference());
         publish(booking, "BOOKING_CONFIRMED", "Booking " + booking.getBookingReference() + " confirmed");

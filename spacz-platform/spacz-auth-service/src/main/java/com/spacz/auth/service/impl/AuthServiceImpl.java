@@ -212,6 +212,32 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenRepository.revokeAllActive(accountId, clock.instant());
     }
 
+    @Override
+    @Transactional
+    public void deleteOwnAccount(Long accountId) {
+        UserAccount account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
+        if (account.getRole() != Role.USER) {
+            throw new ForbiddenException("ACCOUNT_DELETION_NOT_SUPPORTED",
+                    "Only student accounts can be deleted from the app. Contact support to close this account.");
+        }
+        if (account.getStatus() == AccountStatus.DISABLED) {
+            return;
+        }
+        // First the personal data: if user-service is down nothing changes here and the student can retry.
+        userServiceClient.eraseProfile(accountId);
+        // The schema needs an email or a phone: an unroutable, unique tombstone releases the real ones.
+        account.setEmail("deleted-" + accountId + "@deleted.spacz.invalid");
+        account.setPhone(null);
+        account.setPasswordHash(null);
+        account.setStatus(AccountStatus.DISABLED);
+        accountRepository.saveAndFlush(account);
+        refreshTokenRepository.revokeAllActive(accountId, clock.instant());
+        auditEvents.record(accountId, account.getRole().name(), "ACCOUNT_DELETED", "ACCOUNT", accountId,
+                "Student deleted their own account");
+        log.info("Account {} deleted by its owner", accountId);
+    }
+
     private UserAccount createAccount(String rawEmail, String rawPhone, String password, Role role) {
         String email = normalizeEmail(rawEmail);
         String phone = PhoneNumbers.normalize(rawPhone, otpProperties.defaultCountryCode());

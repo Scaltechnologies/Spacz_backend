@@ -5,7 +5,9 @@ import com.spacz.studyhall.dto.PageResponse;
 import com.spacz.studyhall.dto.hall.AmenityIdsRequest;
 import com.spacz.studyhall.dto.hall.CreateStudyHallRequest;
 import com.spacz.studyhall.dto.hall.HallVisibilityRequest;
+import com.spacz.studyhall.dto.hall.ImageOrderRequest;
 import com.spacz.studyhall.dto.hall.ImageRequest;
+import com.spacz.studyhall.dto.hall.ImageUpdateRequest;
 import com.spacz.studyhall.dto.hall.OperatingHoursRequest;
 import com.spacz.studyhall.dto.hall.ProgramIdsRequest;
 import com.spacz.studyhall.dto.hall.LocationResponse;
@@ -184,6 +186,25 @@ public class StudyHallController {
     public StudyHallDetailResponse removeImage(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long id,
                                                @PathVariable Long imageId) {
         return managementService.removeImage(vendor.userId(), id, imageId);
+    }
+
+    @PatchMapping("/{id}/images/{imageId}")
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Make a photo the cover and/or change its caption",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public StudyHallDetailResponse updateImage(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long id,
+                                               @PathVariable Long imageId, @Valid @RequestBody ImageUpdateRequest request) {
+        return managementService.updateImage(vendor.userId(), id, imageId, request);
+    }
+
+    @PutMapping("/{id}/images/order")
+    @PreAuthorize("hasRole('VENDOR')")
+    @Operation(summary = "Reorder the photos",
+            description = "imageIds must list every photo of the hall exactly once (422 INVALID_IMAGE_ORDER otherwise).",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public StudyHallDetailResponse reorderImages(@AuthenticationPrincipal AuthenticatedUser vendor, @PathVariable Long id,
+                                                 @Valid @RequestBody ImageOrderRequest request) {
+        return managementService.reorderImages(vendor.userId(), id, request.imageIds());
     }
 
     @PostMapping("/{id}/amenities")

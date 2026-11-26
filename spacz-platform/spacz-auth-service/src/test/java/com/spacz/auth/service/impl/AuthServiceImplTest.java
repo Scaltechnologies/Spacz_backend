@@ -197,6 +197,59 @@ class AuthServiceImplTest {
         assertThat(token.isRevoked()).isTrue();
     }
 
+    @Test
+    void deletingOwnAccountErasesProfileReleasesIdentifiersAndRevokesSessions() {
+        UserAccount account = withId(UserAccount.create(null, "+919000000001", null, Role.USER), 9L);
+        account.setStatus(AccountStatus.ACTIVE);
+        when(accountRepository.findById(9L)).thenReturn(Optional.of(account));
+
+        authService.deleteOwnAccount(9L);
+
+        verify(userServiceClient).eraseProfile(9L);
+        assertThat(account.getStatus()).isEqualTo(AccountStatus.DISABLED);
+        assertThat(account.getPhone()).isNull();
+        assertThat(account.getEmail()).isEqualTo("deleted-9@deleted.spacz.invalid");
+        assertThat(account.hasPassword()).isFalse();
+        verify(accountRepository).saveAndFlush(account);
+        verify(refreshTokenRepository).revokeAllActive(eq(9L), any());
+    }
+
+    @Test
+    void vendorsCannotDeleteTheirAccountFromTheApp() {
+        UserAccount vendor = withId(UserAccount.create("v@example.com", null, null, Role.VENDOR), 3L);
+        vendor.setStatus(AccountStatus.ACTIVE);
+        when(accountRepository.findById(3L)).thenReturn(Optional.of(vendor));
+
+        assertThatThrownBy(() -> authService.deleteOwnAccount(3L))
+                .isInstanceOf(ForbiddenException.class)
+                .extracting("errorCode").isEqualTo("ACCOUNT_DELETION_NOT_SUPPORTED");
+        verify(userServiceClient, never()).eraseProfile(any());
+        assertThat(vendor.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+    }
+
+    @Test
+    void accountStaysActiveWhenProfileErasureFails() {
+        UserAccount account = withId(account("asha@example.com", "Secret123", AccountStatus.ACTIVE), 5L);
+        when(accountRepository.findById(5L)).thenReturn(Optional.of(account));
+        org.mockito.Mockito.doThrow(new ServiceUnavailableException("user-service", "down"))
+                .when(userServiceClient).eraseProfile(5L);
+
+        assertThatThrownBy(() -> authService.deleteOwnAccount(5L)).isInstanceOf(ServiceUnavailableException.class);
+        assertThat(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(account.getEmail()).isEqualTo("asha@example.com");
+        verify(refreshTokenRepository, never()).revokeAllActive(any(), any());
+    }
+
+    @Test
+    void deletingAnAlreadyDeletedAccountIsANoOp() {
+        UserAccount account = withId(account("deleted-5@deleted.spacz.invalid", "x", AccountStatus.DISABLED), 5L);
+        when(accountRepository.findById(5L)).thenReturn(Optional.of(account));
+
+        authService.deleteOwnAccount(5L);
+
+        verify(userServiceClient, never()).eraseProfile(any());
+    }
+
     private UserAccount account(String email, String password, AccountStatus status) {
         UserAccount account = UserAccount.create(email, null, passwordEncoder.encode(password), Role.USER);
         account.setStatus(status);

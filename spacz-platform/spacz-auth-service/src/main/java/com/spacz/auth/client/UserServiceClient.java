@@ -31,4 +31,13 @@ public class UserServiceClient extends BaseServiceClient {
                 .onStatus(HttpStatusCode::isError, errorHandler())
                 .toBodilessEntity());
     }
+
+    /** Erases the student's personal data and documents (account deletion). Idempotent on userId. */
+    public void eraseProfile(Long userId) {
+        run(() -> restClient.delete()
+                .uri("/internal/users/{userId}", userId)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, errorHandler())
+                .toBodilessEntity());
+    }
 }

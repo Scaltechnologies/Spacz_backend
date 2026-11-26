@@ -27,6 +27,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -123,5 +124,16 @@ public class AuthController {
     public void changePassword(@AuthenticationPrincipal AuthenticatedUser user,
                                @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(user.userId(), request);
+    }
+
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete my account (students)",
+            description = "Erases the profile and identity documents, releases the phone number and email, disables the "
+                    + "account and signs out every session. Bookings and payments remain as anonymous financial records. "
+                    + "403 ACCOUNT_DELETION_NOT_SUPPORTED for vendor and admin accounts.",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER))
+    public void deleteMe(@AuthenticationPrincipal AuthenticatedUser user) {
+        authService.deleteOwnAccount(user.userId());
     }
 }
